@@ -50,7 +50,7 @@ fun TodayScreen(vm: MainViewModel) {
     val todays by vm.todayNotifications.collectAsState()
     val digest by vm.todayDigest.collectAsState()
     val running by vm.digestRunning.collectAsState()
-    val configured by vm.aiConfig.collectAsState()
+    val activeConfig by vm.activeConfig.collectAsState()
     var toast by remember { mutableStateOf<String?>(null) }
 
     var granted by remember { mutableStateOf(NotificationAccess.isGranted(context)) }
@@ -115,8 +115,8 @@ fun TodayScreen(vm: MainViewModel) {
                         Button(
                             enabled = todays.isNotEmpty(),
                             onClick = {
-                                if (!configured.isConfigured) {
-                                    toast = "请先到「我的 → AI 服务」填入你的 key。"
+                                if (activeConfig?.isConfigured != true) {
+                                    toast = "请先到「我的 → AI 服务」添加并选择一个服务。"
                                 } else {
                                     vm.generateDigest { r ->
                                         toast = when (r) {

@@ -14,7 +14,7 @@ class DailyDigestWorker(context: Context, params: WorkerParameters) :
         // 先清理过期原文（隐私保留期）
         container.runRetentionCleanup()
         // 未配置 AI 时不报错，安静跳过——下次配置好自然会跑
-        if (!container.aiConfig.value.isConfigured) return Result.success()
+        if (container.activeProfile()?.isConfigured != true) return Result.success()
 
         val generator = DigestGenerator(container.db, container::chat)
         return when (generator.generateForToday()) {

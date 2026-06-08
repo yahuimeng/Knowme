@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.knowme.app.AppContainer
 import com.knowme.app.ai.AiConfig
 import com.knowme.app.ai.AiOutcome
+import com.knowme.app.ai.AiProfile
 import com.knowme.app.data.db.DigestEntity
 import com.knowme.app.data.db.NotificationEntity
 import com.knowme.app.data.db.TodoEntity
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -50,9 +52,19 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
     val openTodoCount: StateFlow<Int> =
         todoDao.observeOpenCount().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    val aiConfig: StateFlow<AiConfig> = container.aiConfig
+    // ── AI 档案管理 ──
+    val profiles: StateFlow<List<AiProfile>> = container.profiles
+    val activeId: StateFlow<String?> = container.activeId
 
-    fun saveAiConfig(config: AiConfig) = container.saveAiConfig(config)
+    /** 当前使用中的配置（无则 null），供其它页判断是否已配好 AI。 */
+    val activeConfig: StateFlow<AiConfig?> =
+        combine(container.profiles, container.activeId) { list, id ->
+            (list.firstOrNull { it.id == id } ?: list.firstOrNull())?.toConfig()
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    fun saveProfile(profile: AiProfile) = container.saveProfile(profile)
+    fun deleteProfile(id: String) = container.deleteProfile(id)
+    fun setActive(id: String) = container.setActive(id)
 
     fun testConnection(config: AiConfig, onResult: (AiOutcome) -> Unit) {
         viewModelScope.launch { onResult(container.testConnection(config)) }
