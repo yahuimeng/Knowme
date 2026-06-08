@@ -22,10 +22,13 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            isShrinkResources = true   // 删掉未用到的资源（含大量未用图标）
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // 临时用 debug 签名，方便直接装机量体积；正式上架再换正式签名
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {
