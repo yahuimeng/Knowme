@@ -24,6 +24,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -103,58 +104,53 @@ fun SettingsScreen(vm: MainViewModel) {
             }
         }
 
-        // ── 通知读取权限 ──
+        // ── 权限与后台（通知读取 + 保活，合为一块）──
         Card {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("📱 通知读取", style = MaterialTheme.typography.titleMedium)
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("🔐 权限与后台", style = MaterialTheme.typography.titleMedium)
+
+                // 通知读取
                 val granted = NotificationAccess.isGranted(context)
-                Text(
-                    if (granted) "已授权——Knowme 正在替你看通知。" else "未授权——开启后才能开始工作。",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                OutlinedButton(onClick = { NotificationAccess.openSettings(context) }) {
-                    Text(if (granted) "管理权限" else "去授权")
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("通知读取", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                        Text(
+                            if (granted) "已授权，正在替你看通知" else "未授权，开启后才能开始工作",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    OutlinedButton(onClick = { NotificationAccess.openSettings(context) }) {
+                        Text(if (granted) "管理" else "去授权")
+                    }
+                }
+
+                HorizontalDivider()
+
+                // 后台保活
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("后台保活", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                    Text(
+                        "小米/华为/OPPO/vivo 等会激进清后台，需手动把 Knowme 加「自启动」并设电池「无限制」，否则息屏后可能漏收通知。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { BackgroundGuide.openBatterySettings(context) }) {
+                            Text("电池优化")
+                        }
+                        OutlinedButton(onClick = { BackgroundGuide.openAppDetails(context) }) {
+                            Text("自启动")
+                        }
+                    }
                 }
             }
         }
 
-        // ── 后台保活（自启动/电池）──
-        Card {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("🔋 后台保活", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "授权后系统会自动拉起监听服务。但小米/华为/OPPO/vivo 等会激进清后台，" +
-                        "需你手动把 Knowme 加入「自启动」并设为电池「无限制」，否则息屏后可能漏收通知。",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { BackgroundGuide.openBatterySettings(context) }) {
-                        Text("电池优化")
-                    }
-                    OutlinedButton(onClick = { BackgroundGuide.openAppDetails(context) }) {
-                        Text("应用详情/自启动")
-                    }
-                }
-            }
-        }
-
-        // ── token 用量 ──
-        val tokens by vm.tokenTotals.collectAsState()
-        Card {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("📊 Token 用量", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "累计 ${tokens.calls} 次调用 · 输入 ${formatTokens(tokens.input)} · 输出 ${formatTokens(tokens.output)}",
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-                Text(
-                    "合计约 ${formatTokens(tokens.input + tokens.output)} tokens。按 AI 接口上报统计，本地模型可能不上报。",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.outline,
-                )
-            }
-        }
 
         // ── 监听哪些 App ──
         val apps by vm.apps.collectAsState()
@@ -247,6 +243,23 @@ fun SettingsScreen(vm: MainViewModel) {
                 },
                 dismissButton = { TextButton(onClick = { showClearDialog = false }) { Text("取消") } },
             )
+        }
+
+        // ── Token 用量（统计，放最底）──
+        val tokens by vm.tokenTotals.collectAsState()
+        Card {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("📊 Token 用量", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "累计 ${tokens.calls} 次调用 · 输入 ${formatTokens(tokens.input)} · 输出 ${formatTokens(tokens.output)}",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    "合计约 ${formatTokens(tokens.input + tokens.output)} tokens。按 AI 接口上报统计，本地模型可能不上报。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.outline,
+                )
+            }
         }
 
         Text(
