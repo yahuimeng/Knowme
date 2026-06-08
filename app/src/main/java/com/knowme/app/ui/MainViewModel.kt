@@ -6,10 +6,15 @@ import androidx.lifecycle.viewModelScope
 import com.knowme.app.AppContainer
 import com.knowme.app.ai.AiConfig
 import com.knowme.app.ai.AiOutcome
+import com.knowme.app.data.db.DigestEntity
 import com.knowme.app.data.db.NotificationEntity
 import com.knowme.app.data.db.TodoEntity
+import com.knowme.app.digest.DigestGenerator
+import com.knowme.app.digest.DigestResult
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -17,12 +22,27 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
 
     private val notificationDao = container.db.notificationDao()
     private val todoDao = container.db.todoDao()
+    private val digestDao = container.db.digestDao()
+    private val today = DigestGenerator.dayRange()
 
     val notifications: StateFlow<List<NotificationEntity>> =
         notificationDao.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val notificationCount: StateFlow<Int> =
         notificationDao.observeCount().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    /** 今日通知（用于「今日」页三档分组）。 */
+    val todayNotifications: StateFlow<List<NotificationEntity>> =
+        notificationDao.observeDay(today.first, today.second)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** 今日早报（AI 消化后的叙事）。 */
+    val todayDigest: StateFlow<DigestEntity?> =
+        digestDao.observe(DigestGenerator.dateKey())
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    private val _digestRunning = MutableStateFlow(false)
+    val digestRunning: StateFlow<Boolean> = _digestRunning.asStateFlow()
 
     val todos: StateFlow<List<TodoEntity>> =
         todoDao.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -47,6 +67,27 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
                 )
             )
         }
+    }
+
+    fun generateDigest(onResult: (DigestResult) -> Unit) {
+        if (_digestRunning.value) return
+        _digestRunning.value = true
+        viewModelScope.launch {
+            val result = container.generateDigest()
+            _digestRunning.value = false
+            onResult(result)
+        }
+    }
+
+    // ── 引导 ──
+    val onboarded: Boolean get() = container.onboarded
+    fun markOnboarded() { container.onboarded = true }
+
+    // ── 隐私 ──
+    val retentionDays: Int get() = container.retentionDays
+    fun setRetentionDays(days: Int) { container.retentionDays = days }
+    fun clearAllData(onDone: () -> Unit = {}) {
+        viewModelScope.launch { container.clearAllData(); onDone() }
     }
 
     fun ask(question: String, onResult: (AiOutcome) -> Unit) {

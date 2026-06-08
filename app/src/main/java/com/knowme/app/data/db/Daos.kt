@@ -21,6 +21,17 @@ interface NotificationDao {
     @Query("SELECT * FROM notifications WHERE postedAt >= :since ORDER BY postedAt DESC")
     suspend fun since(since: Long): List<NotificationEntity>
 
+    @Query("SELECT * FROM notifications WHERE postedAt BETWEEN :start AND :end ORDER BY postedAt ASC")
+    suspend fun between(start: Long, end: Long): List<NotificationEntity>
+
+    /** 观察某天通知（供「今日」三档分组）。 */
+    @Query("SELECT * FROM notifications WHERE postedAt BETWEEN :start AND :end ORDER BY postedAt DESC")
+    fun observeDay(start: Long, end: Long): Flow<List<NotificationEntity>>
+
+    /** AI 消化后回填优先级与摘要。 */
+    @Query("UPDATE notifications SET priority = :priority, summary = :summary WHERE id = :id")
+    suspend fun setAnalysis(id: Long, priority: Priority, summary: String?)
+
     @Query("SELECT * FROM notifications WHERE postedAt BETWEEN :start AND :end ORDER BY postedAt DESC")
     fun observeBetween(start: Long, end: Long): Flow<List<NotificationEntity>>
 
@@ -48,6 +59,13 @@ interface TodoDao {
 
     @Query("SELECT COUNT(*) FROM todos WHERE done = 0")
     fun observeOpenCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM todos WHERE content = :content AND done = 0")
+    suspend fun countOpenWithContent(content: String): Int
+
+    /** 重新生成早报前，清掉当天自动抽取且未完成的待办，避免重复。 */
+    @Query("DELETE FROM todos WHERE done = 0 AND sourceNotificationId IS NOT NULL AND createdAt >= :since")
+    suspend fun deleteAutoUndoneSince(since: Long)
 
     @Query("DELETE FROM todos")
     suspend fun clear()

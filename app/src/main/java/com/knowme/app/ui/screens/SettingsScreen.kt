@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
@@ -22,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +53,8 @@ fun SettingsScreen(vm: MainViewModel) {
     var model by remember(saved) { mutableStateOf(saved.model) }
     var keyVisible by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<String?>(null) }
+    var retention by remember { mutableStateOf(vm.retentionDays) }
+    var showClearDialog by remember { mutableStateOf(false) }
 
     fun current() = AiConfig(backend, baseUrl.trim(), apiKey.trim(), model.trim())
 
@@ -155,12 +159,46 @@ fun SettingsScreen(vm: MainViewModel) {
 
         // ── 隐私与数据 ──
         Card {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("🔒 隐私与数据", style = MaterialTheme.typography.titleMedium)
                 Text("· 全部数据仅存在本机，没有服务器。", style = MaterialTheme.typography.bodyMedium)
                 Text("· AI 调用由你的手机直接发往你选的服务，开发者不在链路里。", style = MaterialTheme.typography.bodyMedium)
-                Text("· 原文保留期与一键清空将在后续版本开放。", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
+
+                Text("原文保留期", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(3 to "3天", 7 to "7天", 30 to "30天", 0 to "永久").forEach { (days, label) ->
+                        FilterChip(
+                            selected = retention == days,
+                            onClick = { retention = days; vm.setRetentionDays(days) },
+                            label = { Text(label) },
+                        )
+                    }
+                }
+                Text(
+                    "超过保留期的通知原文会自动删除，只留下消化后的摘要与待办。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.outline,
+                )
+
+                OutlinedButton(onClick = { showClearDialog = true }) { Text("清空全部数据") }
             }
+        }
+
+        if (showClearDialog) {
+            AlertDialog(
+                onDismissRequest = { showClearDialog = false },
+                title = { Text("清空全部数据？") },
+                text = { Text("将删除本机所有通知、待办与早报，不可恢复。AI 配置会保留。") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        vm.clearAllData { testResult = "已清空本机数据" }
+                        showClearDialog = false
+                    }) { Text("清空") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showClearDialog = false }) { Text("取消") }
+                },
+            )
         }
 
         Text(
