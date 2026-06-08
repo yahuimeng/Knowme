@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose 接管真正的主题；这里只给启动期一个 Material3 基底 -->
+    <style name="Theme.Knowme" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
