@@ -153,7 +153,11 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
         if (q.isEmpty() || _asking.value) return
         _asking.value = true
         viewModelScope.launch {
-            val recent = notificationDao.since(System.currentTimeMillis() - 7L * 24 * 3600 * 1000)
+            val createdAt = System.currentTimeMillis()
+            // 立即写入问题（答案先空），UI 马上显示我的提问
+            val id = askDao.insert(AskMessageEntity(question = q, answer = "", isError = false, createdAt = createdAt))
+
+            val recent = notificationDao.since(createdAt - 7L * 24 * 3600 * 1000)
                 .take(80)
                 .joinToString("\n") { "[${it.appName}] ${it.title} ${it.text}" }
             val system = "你是用户的私人通知助理。只依据下面提供的通知记录回答，不要编造。回答简洁。"
@@ -162,14 +166,8 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
                 is AiOutcome.Ok -> r.text to false
                 is AiOutcome.Error -> r.message to true
             }
-            askDao.insert(
-                AskMessageEntity(
-                    question = q,
-                    answer = answer,
-                    isError = isError,
-                    createdAt = System.currentTimeMillis(),
-                )
-            )
+            // 回填答案
+            askDao.update(AskMessageEntity(id = id, question = q, answer = answer, isError = isError, createdAt = createdAt))
             _asking.value = false
         }
     }

@@ -142,6 +142,9 @@ interface AskDao {
     @Insert
     suspend fun insert(message: AskMessageEntity): Long
 
+    @Update
+    suspend fun update(message: AskMessageEntity)
+
     @Query("SELECT * FROM asks ORDER BY createdAt ASC")
     fun observeAll(): Flow<List<AskMessageEntity>>
 
