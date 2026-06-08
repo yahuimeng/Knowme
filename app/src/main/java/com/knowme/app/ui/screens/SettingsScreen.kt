@@ -254,7 +254,7 @@ fun SettingsScreen(vm: MainViewModel) {
         ) {
             Text("· 全部数据仅存在本机，没有服务器。", style = MaterialTheme.typography.bodyMedium)
             Text("· AI 调用由你的手机直接发往你选的服务，开发者不在链路里。", style = MaterialTheme.typography.bodyMedium)
-            Text("原文保留期", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            Text("通知原文保留期", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(3 to "3天", 7 to "7天", 30 to "30天", 0 to "永久").forEach { (days, label) ->
                     FilterChip(
@@ -264,6 +264,11 @@ fun SettingsScreen(vm: MainViewModel) {
                     )
                 }
             }
+            Text(
+                "到期只删「通知原文」（含验证码/私聊等隐私）；待办、早报、问答历史、用量都会保留。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.outline,
+            )
             OutlinedButton(onClick = { showClearDialog = true }) { Text("清空全部数据") }
         }
 
