@@ -16,7 +16,7 @@ class DailyDigestWorker(context: Context, params: WorkerParameters) :
         // 未配置 AI 时不报错，安静跳过——下次配置好自然会跑
         if (container.activeProfile()?.isConfigured != true) return Result.success()
 
-        val generator = DigestGenerator(container.db, container::chat)
+        val generator = DigestGenerator(container.db) { s, u -> container.chat(s, u, "digest") }
         return when (generator.generateForToday()) {
             is DigestResult.Ok -> Result.success()
             is DigestResult.Error -> Result.retry()

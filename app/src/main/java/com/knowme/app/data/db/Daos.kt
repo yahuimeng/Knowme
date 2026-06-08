@@ -84,6 +84,34 @@ interface TodoDao {
     suspend fun clear()
 }
 
+/** token 用量汇总。 */
+data class TokenTotals(
+    val input: Long,
+    val output: Long,
+    val calls: Int,
+)
+
+@Dao
+interface TokenUsageDao {
+    @Insert
+    suspend fun insert(usage: TokenUsageEntity): Long
+
+    @Query(
+        "SELECT COALESCE(SUM(inputTokens),0) AS input, COALESCE(SUM(outputTokens),0) AS output, " +
+            "COUNT(*) AS calls FROM token_usage"
+    )
+    fun observeTotals(): Flow<TokenTotals>
+
+    @Query(
+        "SELECT COALESCE(SUM(inputTokens),0) AS input, COALESCE(SUM(outputTokens),0) AS output, " +
+            "COUNT(*) AS calls FROM token_usage WHERE createdAt >= :since"
+    )
+    fun observeTotalsSince(since: Long): Flow<TokenTotals>
+
+    @Query("DELETE FROM token_usage")
+    suspend fun clear()
+}
+
 @Dao
 interface AskDao {
     @Insert

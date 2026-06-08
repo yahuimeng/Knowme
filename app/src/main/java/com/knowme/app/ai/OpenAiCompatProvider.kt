@@ -9,6 +9,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
@@ -24,10 +25,16 @@ object OpenAiCompatProvider : AiProvider {
     private data class Msg(val role: String, val content: String)
 
     @Serializable
-    private data class Resp(val choices: List<Choice> = emptyList())
+    private data class Resp(val choices: List<Choice> = emptyList(), val usage: Usage? = null)
 
     @Serializable
     private data class Choice(val message: Msg? = null)
+
+    @Serializable
+    private data class Usage(
+        @SerialName("prompt_tokens") val promptTokens: Int = 0,
+        @SerialName("completion_tokens") val completionTokens: Int = 0,
+    )
 
     override suspend fun complete(
         config: AiConfig,
@@ -49,8 +56,9 @@ object OpenAiCompatProvider : AiProvider {
             )
         }
         if (response.status == HttpStatusCode.OK) {
-            val text = response.body<Resp>().choices.firstOrNull()?.message?.content.orEmpty()
-            AiOutcome.Ok(text.trim())
+            val body = response.body<Resp>()
+            val text = body.choices.firstOrNull()?.message?.content.orEmpty()
+            AiOutcome.Ok(text.trim(), body.usage?.promptTokens ?: 0, body.usage?.completionTokens ?: 0)
         } else {
             AiOutcome.Error("模型返回 ${response.status.value}：${response.bodyAsText().take(300)}")
         }

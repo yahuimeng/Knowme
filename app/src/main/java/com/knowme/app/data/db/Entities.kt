@@ -43,6 +43,17 @@ data class TodoEntity(
     val doneAt: Long? = null,
 )
 
+/** 一次 AI 调用的 token 用量记录。 */
+@Entity(tableName = "token_usage", indices = [Index("createdAt")])
+data class TokenUsageEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val createdAt: Long,
+    val kind: String,          // digest / ask / chat
+    val model: String,
+    val inputTokens: Int,
+    val outputTokens: Int,
+)
+
 /** 「问问」的一问一答历史记录。 */
 @Entity(tableName = "asks", indices = [Index("createdAt")])
 data class AskMessageEntity(

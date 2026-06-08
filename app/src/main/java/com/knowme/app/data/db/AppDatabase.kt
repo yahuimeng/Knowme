@@ -9,8 +9,11 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [NotificationEntity::class, TodoEntity::class, DigestEntity::class, AskMessageEntity::class],
-    version = 2,
+    entities = [
+        NotificationEntity::class, TodoEntity::class, DigestEntity::class,
+        AskMessageEntity::class, TokenUsageEntity::class,
+    ],
+    version = 3,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -19,6 +22,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun todoDao(): TodoDao
     abstract fun digestDao(): DigestDao
     abstract fun askDao(): AskDao
+    abstract fun tokenUsageDao(): TokenUsageDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -38,13 +42,29 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v2→v3：新增 token_usage 表。 */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `token_usage` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL, " +
+                        "`kind` TEXT NOT NULL, " +
+                        "`model` TEXT NOT NULL, " +
+                        "`inputTokens` INTEGER NOT NULL, " +
+                        "`outputTokens` INTEGER NOT NULL)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_token_usage_createdAt` ON `token_usage` (`createdAt`)")
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "knowme.db",
-                ).addMigrations(MIGRATION_1_2).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { instance = it }
             }
     }
 }

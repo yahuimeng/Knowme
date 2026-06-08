@@ -49,8 +49,10 @@ import androidx.compose.ui.unit.dp
 import com.knowme.app.ai.AiBackend
 import com.knowme.app.ai.AiProfile
 import com.knowme.app.ai.AiOutcome
+import com.knowme.app.notification.BackgroundGuide
 import com.knowme.app.notification.NotificationAccess
 import com.knowme.app.ui.MainViewModel
+import com.knowme.app.ui.formatTokens
 import java.util.UUID
 
 @Composable
@@ -113,6 +115,44 @@ fun SettingsScreen(vm: MainViewModel) {
                 OutlinedButton(onClick = { NotificationAccess.openSettings(context) }) {
                     Text(if (granted) "管理权限" else "去授权")
                 }
+            }
+        }
+
+        // ── 后台保活（自启动/电池）──
+        Card {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("🔋 后台保活", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "授权后系统会自动拉起监听服务。但小米/华为/OPPO/vivo 等会激进清后台，" +
+                        "需你手动把 Knowme 加入「自启动」并设为电池「无限制」，否则息屏后可能漏收通知。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { BackgroundGuide.openBatterySettings(context) }) {
+                        Text("电池优化")
+                    }
+                    OutlinedButton(onClick = { BackgroundGuide.openAppDetails(context) }) {
+                        Text("应用详情/自启动")
+                    }
+                }
+            }
+        }
+
+        // ── token 用量 ──
+        val tokens by vm.tokenTotals.collectAsState()
+        Card {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("📊 Token 用量", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "累计 ${tokens.calls} 次调用 · 输入 ${formatTokens(tokens.input)} · 输出 ${formatTokens(tokens.output)}",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    "合计约 ${formatTokens(tokens.input + tokens.output)} tokens。按 AI 接口上报统计，本地模型可能不上报。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.outline,
+                )
             }
         }
 

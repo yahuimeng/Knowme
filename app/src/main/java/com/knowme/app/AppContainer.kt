@@ -56,12 +56,24 @@ class AppContainer(context: Context) {
         secureStore.setActiveId(id)
     }
 
-    /** 用当前使用中的档案发起一次单轮对话。 */
-    suspend fun chat(systemPrompt: String, userPrompt: String): AiOutcome {
+    /** 用当前使用中的档案发起一次单轮对话，并记录 token 用量。 */
+    suspend fun chat(systemPrompt: String, userPrompt: String, kind: String = "chat"): AiOutcome {
         val config = activeProfile()?.toConfig()
             ?: return AiOutcome.Error("还没配置 AI：请先到「我的 → AI 服务」添加并选择一个服务。")
         if (!config.isConfigured) return AiOutcome.Error("当前 AI 服务信息不完整，请检查 key 与模型。")
-        return AiProvider.forBackend(config.backend).complete(config, systemPrompt, userPrompt)
+        val outcome = AiProvider.forBackend(config.backend).complete(config, systemPrompt, userPrompt)
+        if (outcome is AiOutcome.Ok && (outcome.inputTokens > 0 || outcome.outputTokens > 0)) {
+            db.tokenUsageDao().insert(
+                com.knowme.app.data.db.TokenUsageEntity(
+                    createdAt = System.currentTimeMillis(),
+                    kind = kind,
+                    model = config.model,
+                    inputTokens = outcome.inputTokens,
+                    outputTokens = outcome.outputTokens,
+                )
+            )
+        }
+        return outcome
     }
 
     /** 设置页"测试连接"用：对指定配置发一句最小探活。 */
@@ -73,7 +85,7 @@ class AppContainer(context: Context) {
 
     /** 手动触发：立即生成今天的早报。 */
     suspend fun generateDigest(): DigestResult =
-        DigestGenerator(db, ::chat).generateForToday()
+        DigestGenerator(db) { s, u -> chat(s, u, "digest") }.generateForToday()
 
     // ── 通知来源过滤（默认全收，名单内的被屏蔽）──
     private val _blockedPackages = MutableStateFlow(
@@ -113,6 +125,7 @@ class AppContainer(context: Context) {
         db.todoDao().clear()
         db.digestDao().clear()
         db.askDao().clear()
+        db.tokenUsageDao().clear()
     }
 
     private companion object {

@@ -27,10 +27,16 @@ object AnthropicProvider : AiProvider {
     private data class Msg(val role: String, val content: String)
 
     @Serializable
-    private data class Resp(val content: List<Block> = emptyList())
+    private data class Resp(val content: List<Block> = emptyList(), val usage: Usage? = null)
 
     @Serializable
     private data class Block(val type: String = "text", val text: String = "")
+
+    @Serializable
+    private data class Usage(
+        @SerialName("input_tokens") val inputTokens: Int = 0,
+        @SerialName("output_tokens") val outputTokens: Int = 0,
+    )
 
     override suspend fun complete(
         config: AiConfig,
@@ -53,8 +59,9 @@ object AnthropicProvider : AiProvider {
             )
         }
         if (response.status == HttpStatusCode.OK) {
-            val text = response.body<Resp>().content.firstOrNull { it.type == "text" }?.text.orEmpty()
-            AiOutcome.Ok(text.trim())
+            val body = response.body<Resp>()
+            val text = body.content.firstOrNull { it.type == "text" }?.text.orEmpty()
+            AiOutcome.Ok(text.trim(), body.usage?.inputTokens ?: 0, body.usage?.outputTokens ?: 0)
         } else {
             AiOutcome.Error("Claude 返回 ${response.status.value}：${response.bodyAsText().take(300)}")
         }

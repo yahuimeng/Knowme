@@ -12,6 +12,7 @@ import com.knowme.app.data.db.AskMessageEntity
 import com.knowme.app.data.db.DigestEntity
 import com.knowme.app.data.db.NotificationEntity
 import com.knowme.app.data.db.TodoEntity
+import com.knowme.app.data.db.TokenTotals
 import com.knowme.app.digest.DigestGenerator
 import com.knowme.app.digest.DigestResult
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -94,6 +95,11 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    // ── token 用量 ──
+    val tokenTotals: StateFlow<TokenTotals> =
+        container.db.tokenUsageDao().observeTotals()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TokenTotals(0, 0, 0))
+
     // ── 通知来源过滤 ──
     val apps: StateFlow<List<AppNotifCount>> =
         notificationDao.observeApps().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -128,7 +134,7 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
                 .joinToString("\n") { "[${it.appName}] ${it.title} ${it.text}" }
             val system = "你是用户的私人通知助理。只依据下面提供的通知记录回答，不要编造。回答简洁。"
             val user = "通知记录：\n$recent\n\n问题：$q"
-            val (answer, isError) = when (val r = container.chat(system, user)) {
+            val (answer, isError) = when (val r = container.chat(system, user, "ask")) {
                 is AiOutcome.Ok -> r.text to false
                 is AiOutcome.Error -> r.message to true
             }

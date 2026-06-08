@@ -38,8 +38,12 @@ data class AiConfig(
     val isConfigured: Boolean get() = apiKey.isNotBlank() && baseUrl.isNotBlank() && model.isNotBlank()
 }
 
-/** 统一的对话结果（成功返回文本，失败带错误信息）。 */
+/** 统一的对话结果（成功返回文本+token用量，失败带错误信息）。 */
 sealed interface AiOutcome {
-    data class Ok(val text: String) : AiOutcome
+    data class Ok(
+        val text: String,
+        val inputTokens: Int = 0,
+        val outputTokens: Int = 0,
+    ) : AiOutcome
     data class Error(val message: String) : AiOutcome
 }

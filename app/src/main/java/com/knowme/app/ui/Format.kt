@@ -15,6 +15,13 @@ private val md = SimpleDateFormat("M月d日", Locale.getDefault())
 
 fun formatClock(millis: Long): String = hm.format(Date(millis))
 
+/** 大数字友好展示：1234 → 1.2k，1500000 → 1.5M。 */
+fun formatTokens(n: Long): String = when {
+    n >= 1_000_000 -> String.format("%.1fM", n / 1_000_000.0)
+    n >= 1_000 -> String.format("%.1fk", n / 1_000.0)
+    else -> n.toString()
+}
+
 /** 相对今天的友好日期分组标签：今天 / 昨天 / M月d日 */
 fun dayLabel(millis: Long): String {
     val today = Calendar.getInstance()
