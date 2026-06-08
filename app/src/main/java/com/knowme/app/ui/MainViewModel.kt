@@ -13,6 +13,7 @@ import com.knowme.app.data.db.DigestEntity
 import com.knowme.app.data.db.NotificationEntity
 import com.knowme.app.data.db.TodoEntity
 import com.knowme.app.data.db.TokenTotals
+import com.knowme.app.digest.DigestAutoMode
 import com.knowme.app.digest.DigestGenerator
 import com.knowme.app.digest.DigestResult
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -85,6 +86,10 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
+    fun deleteTodo(todo: TodoEntity) {
+        viewModelScope.launch { todoDao.delete(todo) }
+    }
+
     fun generateDigest(onResult: (DigestResult) -> Unit) {
         if (_digestRunning.value) return
         _digestRunning.value = true
@@ -95,10 +100,25 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    // ── token 用量 ──
+    // ── token 用量（总 + 今日）──
     val tokenTotals: StateFlow<TokenTotals> =
         container.db.tokenUsageDao().observeTotals()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TokenTotals(0, 0, 0))
+    val tokenTotalsToday: StateFlow<TokenTotals> =
+        container.db.tokenUsageDao().observeTotalsSince(today.first)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TokenTotals(0, 0, 0))
+
+    // ── 自动消化 ──
+    val digestMode: DigestAutoMode get() = container.digestMode
+    val digestIntervalMin: Int get() = container.digestIntervalMin
+    fun setDigestMode(mode: DigestAutoMode, intervalMin: Int) = container.setDigestMode(mode, intervalMin)
+
+    /** 「打开App自动」：进今日页时按节流+有新通知才静默生成。 */
+    fun maybeAutoGenerateOnOpen() {
+        viewModelScope.launch {
+            if (container.shouldAutoGenerateOnOpen()) generateDigest {}
+        }
+    }
 
     // ── 通知来源过滤 ──
     val apps: StateFlow<List<AppNotifCount>> =

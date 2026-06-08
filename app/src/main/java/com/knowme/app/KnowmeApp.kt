@@ -10,7 +10,8 @@ class KnowmeApp : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
-        // 安排每日早报（每天约 8 点）
+        // 每日基线 + 按用户选择的自动模式恢复后台任务
         DigestScheduler.schedule(this)
+        container.applyDigestSchedule()
     }
 }

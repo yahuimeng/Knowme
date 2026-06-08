@@ -7,8 +7,10 @@ import com.knowme.app.ai.AiProfile
 import com.knowme.app.ai.AiProvider
 import com.knowme.app.ai.SecureConfigStore
 import com.knowme.app.data.db.AppDatabase
+import com.knowme.app.digest.DigestAutoMode
 import com.knowme.app.digest.DigestGenerator
 import com.knowme.app.digest.DigestResult
+import com.knowme.app.digest.DigestScheduler
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,6 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 class AppContainer(context: Context) {
 
+    private val appContext = context.applicationContext
     val db: AppDatabase = AppDatabase.get(context)
     private val secureStore = SecureConfigStore(context)
     private val prefs = context.getSharedPreferences("knowme_prefs", Context.MODE_PRIVATE)
@@ -83,9 +86,57 @@ class AppContainer(context: Context) {
             .complete(config, "You are a connectivity probe.", "回复 ok 即可。")
     }
 
-    /** 手动触发：立即生成今天的早报。 */
-    suspend fun generateDigest(): DigestResult =
-        DigestGenerator(db) { s, u -> chat(s, u, "digest") }.generateForToday()
+    /** 生成今天的早报；成功后记录时间戳（供自动模式节流）。 */
+    suspend fun generateDigest(): DigestResult {
+        val result = DigestGenerator(db) { s, u -> chat(s, u, "digest") }.generateForToday()
+        if (result is DigestResult.Ok) lastDigestAt = System.currentTimeMillis()
+        return result
+    }
+
+    // ── 自动消化（早报生成方式）──
+    var digestMode: DigestAutoMode
+        get() = runCatching {
+            DigestAutoMode.valueOf(prefs.getString(KEY_DIGEST_MODE, DigestAutoMode.MANUAL.name)!!)
+        }.getOrDefault(DigestAutoMode.MANUAL)
+        private set(value) = prefs.edit().putString(KEY_DIGEST_MODE, value.name).apply()
+
+    var digestIntervalMin: Int
+        get() = prefs.getInt(KEY_DIGEST_INTERVAL, 30)
+        private set(value) = prefs.edit().putInt(KEY_DIGEST_INTERVAL, value).apply()
+
+    private var lastDigestAt: Long
+        get() = prefs.getLong(KEY_LAST_DIGEST_AT, 0)
+        set(value) = prefs.edit().putLong(KEY_LAST_DIGEST_AT, value).apply()
+
+    /** 更新自动模式与间隔，并重排后台任务。 */
+    fun setDigestMode(mode: DigestAutoMode, intervalMin: Int) {
+        digestMode = mode
+        digestIntervalMin = intervalMin
+        DigestScheduler.applyMode(appContext, mode, intervalMin)
+    }
+
+    /** App 启动时按当前模式恢复后台任务。 */
+    fun applyDigestSchedule() {
+        DigestScheduler.applyMode(appContext, digestMode, digestIntervalMin)
+    }
+
+    private suspend fun hasNewSinceLastDigest(): Boolean =
+        db.notificationDao().countSince(lastDigestAt) > 0
+
+    /** 「打开App自动」模式下，进今日页时判断是否该静默生成一次。 */
+    suspend fun shouldAutoGenerateOnOpen(): Boolean {
+        if (digestMode != DigestAutoMode.ON_OPEN) return false
+        if (activeProfile()?.isConfigured != true) return false
+        if (System.currentTimeMillis() - lastDigestAt < digestIntervalMin * 60_000L) return false
+        return hasNewSinceLastDigest()  // 无新通知则不消化
+    }
+
+    /** 后台自动消化：未配置或没有新通知则跳过（不烧 token）。 */
+    suspend fun autoGenerateIfNew(): DigestResult? {
+        if (activeProfile()?.isConfigured != true) return null
+        if (!hasNewSinceLastDigest()) return null
+        return generateDigest()
+    }
 
     // ── 通知来源过滤（默认全收，名单内的被屏蔽）──
     private val _blockedPackages = MutableStateFlow(
@@ -132,6 +183,9 @@ class AppContainer(context: Context) {
         const val KEY_RETENTION_DAYS = "retention_days"
         const val KEY_ONBOARDED = "onboarded"
         const val KEY_BLOCKED = "blocked_packages"
+        const val KEY_DIGEST_MODE = "digest_mode"
+        const val KEY_DIGEST_INTERVAL = "digest_interval_min"
+        const val KEY_LAST_DIGEST_AT = "last_digest_at"
         const val DEFAULT_RETENTION_DAYS = 7
     }
 }

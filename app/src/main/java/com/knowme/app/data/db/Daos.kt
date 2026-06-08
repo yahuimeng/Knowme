@@ -1,6 +1,7 @@
 package com.knowme.app.data.db
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
@@ -45,6 +46,10 @@ interface NotificationDao {
     @Query("SELECT COUNT(*) FROM notifications")
     fun observeCount(): Flow<Int>
 
+    /** 自某时间点之后新到的通知数（用于"无新通知则不消化"）。 */
+    @Query("SELECT COUNT(*) FROM notifications WHERE postedAt > :since")
+    suspend fun countSince(since: Long): Int
+
     @Query(
         "SELECT packageName AS packageName, MAX(appName) AS appName, COUNT(*) AS count " +
             "FROM notifications GROUP BY packageName ORDER BY count DESC"
@@ -67,14 +72,17 @@ interface TodoDao {
     @Update
     suspend fun update(todo: TodoEntity)
 
+    @Delete
+    suspend fun delete(todo: TodoEntity)
+
     @Query("SELECT * FROM todos ORDER BY done ASC, createdAt DESC")
     fun observeAll(): Flow<List<TodoEntity>>
 
     @Query("SELECT COUNT(*) FROM todos WHERE done = 0")
     fun observeOpenCount(): Flow<Int>
 
-    @Query("SELECT COUNT(*) FROM todos WHERE content = :content AND done = 0")
-    suspend fun countOpenWithContent(content: String): Int
+    @Query("SELECT COUNT(*) FROM todos WHERE content = :content")
+    suspend fun countWithContent(content: String): Int
 
     /** 重新生成早报前，清掉当天自动抽取且未完成的待办，避免重复。 */
     @Query("DELETE FROM todos WHERE done = 0 AND sourceNotificationId IS NOT NULL AND createdAt >= :since")

@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import com.knowme.app.ai.AiBackend
 import com.knowme.app.ai.AiProfile
 import com.knowme.app.ai.AiOutcome
+import com.knowme.app.digest.DigestAutoMode
 import com.knowme.app.notification.BackgroundGuide
 import com.knowme.app.notification.NotificationAccess
 import com.knowme.app.ui.MainViewModel
@@ -101,6 +102,76 @@ fun SettingsScreen(vm: MainViewModel) {
                         onDeleted = { vm.deleteProfile(current.id); editing = null },
                     )
                 }
+            }
+        }
+
+        // ── Token 用量（紧跟 AI 服务）──
+        val tokens by vm.tokenTotals.collectAsState()
+        val tokensToday by vm.tokenTotalsToday.collectAsState()
+        Card {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("📊 Token 用量", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "今日　输入 ${formatTokens(tokensToday.input)} · 输出 ${formatTokens(tokensToday.output)} · ${tokensToday.calls} 次",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    "总计　输入 ${formatTokens(tokens.input)} · 输出 ${formatTokens(tokens.output)} · ${tokens.calls} 次",
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    "按 AI 接口上报统计，本地模型可能不上报。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.outline,
+                )
+            }
+        }
+
+        // ── 自动消化（早报生成方式）──
+        var digestMode by remember { mutableStateOf(vm.digestMode) }
+        var interval by remember { mutableStateOf(vm.digestIntervalMin) }
+        Card {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("🔄 自动消化", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "早报什么时候自动生成。自动模式都按下方间隔节流，避免频繁烧 token。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        DigestAutoMode.MANUAL to "手动",
+                        DigestAutoMode.ON_OPEN to "打开App时",
+                        DigestAutoMode.PERIODIC to "定时",
+                    ).forEach { (m, label) ->
+                        FilterChip(
+                            selected = digestMode == m,
+                            onClick = { digestMode = m; vm.setDigestMode(m, interval) },
+                            label = { Text(label) },
+                        )
+                    }
+                }
+                if (digestMode != DigestAutoMode.MANUAL) {
+                    Text("间隔", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(15, 30, 60).forEach { min ->
+                            FilterChip(
+                                selected = interval == min,
+                                onClick = { interval = min; vm.setDigestMode(digestMode, min) },
+                                label = { Text("${min}分钟") },
+                            )
+                        }
+                    }
+                }
+                Text(
+                    when (digestMode) {
+                        DigestAutoMode.MANUAL -> "仅在「今日」页点按钮时生成。"
+                        DigestAutoMode.ON_OPEN -> "每次打开「今日」页，若距上次≥间隔就自动生成一次（最省 token，推荐）。"
+                        DigestAutoMode.PERIODIC -> "后台每隔间隔生成一次（系统限制最短 15 分钟，较费电与 token）。"
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.outline,
+                )
             }
         }
 
@@ -243,23 +314,6 @@ fun SettingsScreen(vm: MainViewModel) {
                 },
                 dismissButton = { TextButton(onClick = { showClearDialog = false }) { Text("取消") } },
             )
-        }
-
-        // ── Token 用量（统计，放最底）──
-        val tokens by vm.tokenTotals.collectAsState()
-        Card {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("📊 Token 用量", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "累计 ${tokens.calls} 次调用 · 输入 ${formatTokens(tokens.input)} · 输出 ${formatTokens(tokens.output)}",
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-                Text(
-                    "合计约 ${formatTokens(tokens.input + tokens.output)} tokens。按 AI 接口上报统计，本地模型可能不上报。",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.outline,
-                )
-            }
         }
 
         Text(

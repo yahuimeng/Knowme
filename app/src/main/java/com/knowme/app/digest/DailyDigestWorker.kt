@@ -13,13 +13,10 @@ class DailyDigestWorker(context: Context, params: WorkerParameters) :
         val container = (applicationContext as KnowmeApp).container
         // 先清理过期原文（隐私保留期）
         container.runRetentionCleanup()
-        // 未配置 AI 时不报错，安静跳过——下次配置好自然会跑
-        if (container.activeProfile()?.isConfigured != true) return Result.success()
-
-        val generator = DigestGenerator(container.db) { s, u -> container.chat(s, u, "digest") }
-        return when (generator.generateForToday()) {
-            is DigestResult.Ok -> Result.success()
+        // 未配置 / 无新通知则安静跳过，不烧 token
+        return when (container.autoGenerateIfNew()) {
             is DigestResult.Error -> Result.retry()
+            else -> Result.success()  // Ok 或 null(跳过) 都算成功
         }
     }
 }

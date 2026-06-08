@@ -55,11 +55,11 @@ class DigestGenerator(
             }
         }
 
-        // 重写当天自动待办，去重后写入
+        // 重写当天自动待办，去重后写入（最多保留 5 条，避免泛滥）
         db.todoDao().deleteAutoUndoneSince(start)
         var todoCount = 0
-        parsed.todos.forEach { t ->
-            if (t.content.isNotBlank() && db.todoDao().countOpenWithContent(t.content) == 0) {
+        parsed.todos.take(5).forEach { t ->
+            if (t.content.isNotBlank() && db.todoDao().countWithContent(t.content.trim()) == 0) {
                 db.todoDao().insert(
                     TodoEntity(
                         content = t.content.trim(),
@@ -101,7 +101,9 @@ class DigestGenerator(
               "todos": [{"content": "需要我做的事", "sourceId": 数字, "sourceLabel": "如 微信·王总 09:12"}]
             }
             分级标准：HIGH=需要我亲自处理/回复/有截止；MID=知道就行（日程/快递/账单）；LOW=噪音（促销/砍价/无关推送）。
-            todos 只放真正需要我行动的；纯噪音不要进 items 的 summary 也可简略。
+            关于 todos（务必克制）：只抽取"真正需要我主动做的事"——例如需要我回复某人、审批、有明确截止的任务。
+            一般只从 HIGH 的通知里抽；最多 5 条；宁缺毋滥，不确定就不要放。
+            纯通知/快递到件/账单提醒/促销/群里闲聊一律不要变成 todo。内容写成"动宾短语"（如"回复李四周四是否有空"）。
         """.trimIndent()
     }
 

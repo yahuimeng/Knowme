@@ -57,7 +57,10 @@ fun TodayScreen(vm: MainViewModel) {
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) granted = NotificationAccess.isGranted(context)
+            if (event == Lifecycle.Event.ON_RESUME) {
+                granted = NotificationAccess.isGranted(context)
+                vm.maybeAutoGenerateOnOpen()  // 「打开App自动」模式按节流静默生成
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
