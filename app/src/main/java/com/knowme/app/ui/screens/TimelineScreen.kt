@@ -3,6 +3,7 @@ package com.knowme.app.ui.screens
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -23,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.knowme.app.data.db.NotificationEntity
 import com.knowme.app.ui.MainViewModel
 import com.knowme.app.ui.dayLabel
 import com.knowme.app.ui.formatClock
@@ -30,12 +32,11 @@ import com.knowme.app.ui.formatClock
 @Composable
 fun TimelineScreen(vm: MainViewModel) {
     val notifications by vm.notifications.collectAsState()
-    // 按"今天/昨天/日期"分组
-    val grouped = notifications.groupBy { dayLabel(it.postedAt) }
+    val byDay = notifications.groupBy { dayLabel(it.postedAt) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         item {
             Spacer(Modifier.height(12.dp))
@@ -45,61 +46,91 @@ fun TimelineScreen(vm: MainViewModel) {
         if (notifications.isEmpty()) {
             item {
                 Text(
-                    "还没有记录。授权通知读取后，你的每条通知都会在这里留痕——这是你这一天的行车记录仪。",
+                    "还没有记录。授权通知读取后，每条通知都会在这里留痕——同一个 App 的多条会折叠成一行。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
-        grouped.forEach { (day, items) ->
+        byDay.forEach { (day, dayItems) ->
             item {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(10.dp))
                 Text(
                     day,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary,
                 )
+                Spacer(Modifier.height(2.dp))
             }
-            items(items, key = { it.id }) { n ->
-                // 点击展开/收起：长通知默认折叠 3 行，点一下看全文
-                var expanded by remember(n.id) { mutableStateOf(false) }
-                var overflowing by remember(n.id) { mutableStateOf(false) }
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { expanded = !expanded }
-                        .padding(vertical = 6.dp),
-                ) {
+            // 天内按 App 聚合，App 顺序 = 最新一条的先后
+            val byApp = dayItems.groupBy { it.packageName }.values.toList()
+            items(byApp, key = { it.first().id }) { group -> AppGroupItem(group) }
+        }
+        item { Spacer(Modifier.height(16.dp)) }
+    }
+}
+
+/** 同一 App 当天的通知聚合成一组，多条可折叠。 */
+@Composable
+private fun AppGroupItem(group: List<NotificationEntity>) {
+    val latest = group.first()
+    val multi = group.size > 1
+    var expanded by remember(latest.id) { mutableStateOf(false) }
+
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clickable(enabled = multi) { expanded = !expanded }
+            .padding(vertical = 6.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(
+                "${formatClock(latest.postedAt)}  ${latest.appName}",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+            )
+            if (multi) {
+                Text(
+                    "${group.size}条 ${if (expanded) "▴" else "▾"}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.outline,
+                )
+            }
+        }
+        if (!expanded) {
+            val line = snippet(latest)
+            if (line.isNotEmpty()) {
+                Text(
+                    line,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = if (multi) 1 else 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        } else {
+            group.forEach { n ->
+                Column(Modifier.fillMaxWidth().padding(top = 4.dp)) {
                     Text(
-                        "${formatClock(n.postedAt)}  ${n.appName}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
+                        formatClock(n.postedAt),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline,
                     )
-                    val line = listOf(n.title, n.text).filter { it.isNotEmpty() }.joinToString("：")
+                    val line = snippet(n)
                     if (line.isNotEmpty()) {
                         Text(
                             line,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = if (expanded) Int.MAX_VALUE else 3,
-                            overflow = TextOverflow.Ellipsis,
-                            onTextLayout = { result ->
-                                if (!expanded) overflowing = result.hasVisualOverflow
-                            },
                         )
-                        if (overflowing || expanded) {
-                            Text(
-                                if (expanded) "收起 ▴" else "展开 ▾",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        }
                     }
-                    HorizontalDivider(Modifier.padding(top = 6.dp))
                 }
             }
         }
-        item { Spacer(Modifier.height(16.dp)) }
+        HorizontalDivider(Modifier.padding(top = 6.dp))
     }
 }
+
+private fun snippet(n: NotificationEntity): String =
+    listOf(n.title, n.text).filter { it.isNotEmpty() }.joinToString("：")

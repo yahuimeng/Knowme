@@ -1,6 +1,7 @@
 package com.knowme.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,6 +27,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,6 +71,11 @@ fun TodayScreen(vm: MainViewModel) {
     val high = todays.filter { it.priority == Priority.HIGH }
     val mid = todays.filter { it.priority == Priority.MID }
     val low = todays.filter { it.priority == Priority.LOW }
+
+    // 三档可折叠：要处理默认展开，噪音默认收起
+    var highExpanded by rememberSaveable { mutableStateOf(true) }
+    var midExpanded by rememberSaveable { mutableStateOf(true) }
+    var lowExpanded by rememberSaveable { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -139,9 +146,9 @@ fun TodayScreen(vm: MainViewModel) {
             }
         }
 
-        bucket("🔴 需要你处理", high, Priority.HIGH)
-        bucket("🟡 知道就行", mid, Priority.MID)
-        bucket("⚪️ 已折叠噪音", low, Priority.LOW)
+        bucket("🔴 需要你处理", high, Priority.HIGH, highExpanded) { highExpanded = !highExpanded }
+        bucket("🟡 知道就行", mid, Priority.MID, midExpanded) { midExpanded = !midExpanded }
+        bucket("⚪️ 已折叠噪音", low, Priority.LOW, lowExpanded) { lowExpanded = !lowExpanded }
 
         item { Spacer(Modifier.height(16.dp)) }
     }
@@ -151,15 +158,28 @@ private fun androidx.compose.foundation.lazy.LazyListScope.bucket(
     title: String,
     list: List<NotificationEntity>,
     priority: Priority,
+    expanded: Boolean,
+    onToggle: () -> Unit,
 ) {
     if (list.isEmpty()) return
     item {
-        Text(
-            "$title (${list.size})",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
+        Row(
+            Modifier.fillMaxWidth().clickable { onToggle() },
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                "$title (${list.size})",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                if (expanded) "收起 ▴" else "展开 ▾",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.outline,
+            )
+        }
     }
+    if (!expanded) return
     items(list, key = { it.id }) { n ->
         Card(Modifier.fillMaxWidth()) {
             Row(Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
