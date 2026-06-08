@@ -9,6 +9,7 @@ import com.knowme.app.ai.AiOutcome
 import com.knowme.app.ai.AiProfile
 import com.knowme.app.data.db.AppNotifCount
 import com.knowme.app.data.db.AskMessageEntity
+import com.knowme.app.data.db.DailyTokens
 import com.knowme.app.data.db.DigestEntity
 import com.knowme.app.data.db.NotificationEntity
 import com.knowme.app.data.db.TodoEntity
@@ -107,6 +108,9 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
     val tokenTotalsToday: StateFlow<TokenTotals> =
         container.db.tokenUsageDao().observeTotalsSince(today.first)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TokenTotals(0, 0, 0))
+    val dailyTokens: StateFlow<List<DailyTokens>> =
+        container.db.tokenUsageDao().observeDaily(System.currentTimeMillis() - 7L * 24 * 3600 * 1000)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // ── 自动消化 ──
     val digestMode: DigestAutoMode get() = container.digestMode

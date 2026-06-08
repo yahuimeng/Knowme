@@ -99,10 +99,23 @@ data class TokenTotals(
     val calls: Int,
 )
 
+/** 某天的 token 用量（input+output 合计）。 */
+data class DailyTokens(
+    val day: String,   // yyyy-MM-dd（本地时区）
+    val total: Long,
+)
+
 @Dao
 interface TokenUsageDao {
     @Insert
     suspend fun insert(usage: TokenUsageEntity): Long
+
+    @Query(
+        "SELECT strftime('%Y-%m-%d', createdAt/1000, 'unixepoch', 'localtime') AS day, " +
+            "SUM(inputTokens + outputTokens) AS total FROM token_usage " +
+            "WHERE createdAt >= :since GROUP BY day"
+    )
+    fun observeDaily(since: Long): Flow<List<DailyTokens>>
 
     @Query(
         "SELECT COALESCE(SUM(inputTokens),0) AS input, COALESCE(SUM(outputTokens),0) AS output, " +

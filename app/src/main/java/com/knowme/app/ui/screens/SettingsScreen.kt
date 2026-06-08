@@ -1,16 +1,20 @@
 package com.knowme.app.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -22,9 +26,7 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,19 +44,25 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.knowme.app.ai.AiBackend
-import com.knowme.app.ai.AiProfile
 import com.knowme.app.ai.AiOutcome
+import com.knowme.app.ai.AiProfile
+import com.knowme.app.data.db.DailyTokens
 import com.knowme.app.digest.DigestAutoMode
 import com.knowme.app.notification.BackgroundGuide
 import com.knowme.app.notification.NotificationAccess
 import com.knowme.app.ui.MainViewModel
 import com.knowme.app.ui.formatTokens
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 import java.util.UUID
 
 @Composable
@@ -63,7 +71,6 @@ fun SettingsScreen(vm: MainViewModel) {
     val profiles by vm.profiles.collectAsState()
     val activeId by vm.activeId.collectAsState()
 
-    // null = 列表视图；非 null = 正在编辑/新增这份档案
     var editing by remember { mutableStateOf<AiProfile?>(null) }
     var retention by remember { mutableStateOf(vm.retentionDays) }
     var showClearDialog by remember { mutableStateOf(false) }
@@ -75,7 +82,8 @@ fun SettingsScreen(vm: MainViewModel) {
         Spacer(Modifier.height(8.dp))
         Text("我的", style = MaterialTheme.typography.headlineSmall)
 
-        Card {
+        // ① AI 服务（永远第一）
+        Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("🤖 AI 服务（你自己的 key）", style = MaterialTheme.typography.titleMedium)
                 val current = editing
@@ -85,12 +93,7 @@ fun SettingsScreen(vm: MainViewModel) {
                         activeId = activeId,
                         onSelect = { vm.setActive(it) },
                         onEdit = { editing = it },
-                        onAdd = {
-                            editing = AiProfile(
-                                id = UUID.randomUUID().toString(),
-                                name = "",
-                            )
-                        },
+                        onAdd = { editing = AiProfile(id = UUID.randomUUID().toString(), name = "") },
                     )
                 } else {
                     AiEditor(
@@ -105,36 +108,86 @@ fun SettingsScreen(vm: MainViewModel) {
             }
         }
 
-        // ── Token 用量（紧跟 AI 服务）──
+        // ② Token 用量（常看，紧跟 AI）
         val tokens by vm.tokenTotals.collectAsState()
         val tokensToday by vm.tokenTotalsToday.collectAsState()
-        Card {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        val daily by vm.dailyTokens.collectAsState()
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("📊 Token 用量", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "今日　输入 ${formatTokens(tokensToday.input)} · 输出 ${formatTokens(tokensToday.output)} · ${tokensToday.calls} 次",
+                    "今日 ${formatTokens(tokensToday.input + tokensToday.output)} · 总计 ${formatTokens(tokens.input + tokens.output)} · 共 ${tokens.calls} 次调用",
                     style = MaterialTheme.typography.bodyLarge,
                 )
+                TokenBarChart(daily)
                 Text(
-                    "总计　输入 ${formatTokens(tokens.input)} · 输出 ${formatTokens(tokens.output)} · ${tokens.calls} 次",
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-                Text(
-                    "按 AI 接口上报统计，本地模型可能不上报。",
+                    "近 7 天每日用量。按 AI 接口上报统计，本地模型可能不上报。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.outline,
                 )
             }
         }
 
-        // ── 自动消化（早报生成方式）──
+        // ③ 监听哪些 App（频繁调整，往上）
+        val apps by vm.apps.collectAsState()
+        val blocked by vm.blockedPackages.collectAsState()
+        var showApps by remember { mutableStateOf(false) }
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    Modifier.fillMaxWidth().clickable { showApps = !showApps },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text("📥 监听哪些 App", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        if (blocked.isEmpty()) "全部接收 ▾" else "已屏蔽 ${blocked.size} 个 ▾",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.outline,
+                    )
+                }
+                if (showApps) {
+                    if (apps.isEmpty()) {
+                        Text(
+                            "等收到通知后，这里会列出各 App，可单独关掉不想看的。",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        Text(
+                            "默认全部接收，关掉的 App 之后的通知将被忽略。",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.outline,
+                        )
+                        apps.forEach { app ->
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(app.appName, style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        "${app.count} 条",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.outline,
+                                    )
+                                }
+                                Switch(
+                                    checked = !blocked.contains(app.packageName),
+                                    onCheckedChange = { receive -> vm.setAppBlocked(app.packageName, !receive) },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ③ 自动消化
         var digestMode by remember { mutableStateOf(vm.digestMode) }
         var interval by remember { mutableStateOf(vm.digestIntervalMin) }
-        Card {
+        Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("🔄 自动消化", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "早报什么时候自动生成。自动模式都按下方间隔节流，避免频繁烧 token。",
+                    "早报什么时候自动生成。自动模式都按下方间隔节流，且无新通知不消化，避免烧 token。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -166,8 +219,8 @@ fun SettingsScreen(vm: MainViewModel) {
                 Text(
                     when (digestMode) {
                         DigestAutoMode.MANUAL -> "仅在「今日」页点按钮时生成。"
-                        DigestAutoMode.ON_OPEN -> "每次打开「今日」页，若距上次≥间隔就自动生成一次（最省 token，推荐）。"
-                        DigestAutoMode.PERIODIC -> "后台每隔间隔生成一次（系统限制最短 15 分钟，较费电与 token）。"
+                        DigestAutoMode.ON_OPEN -> "每次打开「今日」页，若距上次≥间隔且有新通知才自动生成（推荐）。"
+                        DigestAutoMode.PERIODIC -> "后台每隔间隔生成一次（系统限制最短 15 分钟，较费电）。"
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.outline,
@@ -175,118 +228,42 @@ fun SettingsScreen(vm: MainViewModel) {
             }
         }
 
-        // ── 权限与后台（通知读取 + 保活，合为一块）──
-        Card {
+        // ④ 权限与后台（三按钮一行，放在隐私之上）
+        Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("🔐 权限与后台", style = MaterialTheme.typography.titleMedium)
-
-                // 通知读取
                 val granted = NotificationAccess.isGranted(context)
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("通知读取", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-                        Text(
-                            if (granted) "已授权，正在替你看通知" else "未授权，开启后才能开始工作",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    OutlinedButton(onClick = { NotificationAccess.openSettings(context) }) {
-                        Text(if (granted) "管理" else "去授权")
-                    }
-                }
-
-                HorizontalDivider()
-
-                // 后台保活
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("后台保活", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-                    Text(
-                        "小米/华为/OPPO/vivo 等会激进清后台，需手动把 Knowme 加「自启动」并设电池「无限制」，否则息屏后可能漏收通知。",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { BackgroundGuide.openBatterySettings(context) }) {
-                            Text("电池优化")
-                        }
-                        OutlinedButton(onClick = { BackgroundGuide.openAppDetails(context) }) {
-                            Text("自启动")
-                        }
-                    }
+                Text(
+                    if (granted)
+                        "通知读取已授权。国产手机还需手动开「自启动」+电池「无限制」，否则息屏后可能漏收。"
+                    else
+                        "先授予「通知读取」才能开始工作；国产手机还要开自启动 + 电池无限制。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = { NotificationAccess.openSettings(context) },
+                        modifier = Modifier.weight(1f),
+                    ) { Text("通知") }
+                    OutlinedButton(
+                        onClick = { BackgroundGuide.openBatterySettings(context) },
+                        modifier = Modifier.weight(1f),
+                    ) { Text("电池优化") }
+                    OutlinedButton(
+                        onClick = { BackgroundGuide.openAppDetails(context) },
+                        modifier = Modifier.weight(1f),
+                    ) { Text("自启动") }
                 }
             }
         }
 
-
-        // ── 监听哪些 App ──
-        val apps by vm.apps.collectAsState()
-        val blocked by vm.blockedPackages.collectAsState()
-        var showApps by remember { mutableStateOf(false) }
-        Card {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(
-                    Modifier.fillMaxWidth().clickable { showApps = !showApps },
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text("📥 监听哪些 App", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        if (blocked.isEmpty()) "全部接收 ▾" else "已屏蔽 ${blocked.size} 个 ▾",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outline,
-                    )
-                }
-                if (showApps) {
-                    if (apps.isEmpty()) {
-                        Text(
-                            "等收到通知后，这里会列出各 App，可单独关掉不想看的。",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    } else {
-                        Text(
-                            "默认全部接收，关掉的 App 之后的通知将被忽略。",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.outline,
-                        )
-                        apps.forEach { app ->
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(app.appName, style = MaterialTheme.typography.bodyLarge)
-                                    Text(
-                                        "${app.count} 条",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.outline,
-                                    )
-                                }
-                                Switch(
-                                    checked = !blocked.contains(app.packageName),
-                                    onCheckedChange = { receive ->
-                                        vm.setAppBlocked(app.packageName, !receive)
-                                    },
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // ── 隐私与数据 ──
-        Card {
+        // ⑤ 隐私与数据
+        Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("🔒 隐私与数据", style = MaterialTheme.typography.titleMedium)
                 Text("· 全部数据仅存在本机，没有服务器。", style = MaterialTheme.typography.bodyMedium)
                 Text("· AI 调用由你的手机直接发往你选的服务，开发者不在链路里。", style = MaterialTheme.typography.bodyMedium)
-
                 Text("原文保留期", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(3 to "3天", 7 to "7天", 30 to "30天", 0 to "永久").forEach { (days, label) ->
@@ -305,12 +282,9 @@ fun SettingsScreen(vm: MainViewModel) {
             AlertDialog(
                 onDismissRequest = { showClearDialog = false },
                 title = { Text("清空全部数据？") },
-                text = { Text("将删除本机所有通知、待办与早报，不可恢复。AI 配置会保留。") },
+                text = { Text("将删除本机所有通知、待办、早报与问答历史，不可恢复。AI 配置会保留。") },
                 confirmButton = {
-                    TextButton(onClick = {
-                        vm.clearAllData()
-                        showClearDialog = false
-                    }) { Text("清空") }
+                    TextButton(onClick = { vm.clearAllData(); showClearDialog = false }) { Text("清空") }
                 },
                 dismissButton = { TextButton(onClick = { showClearDialog = false }) { Text("取消") } },
             )
@@ -326,6 +300,52 @@ fun SettingsScreen(vm: MainViewModel) {
     }
 }
 
+/** 近 7 天 token 用量柱状图（Compose 原生，无第三方库）。 */
+@Composable
+private fun TokenBarChart(daily: List<DailyTokens>) {
+    val keyFmt = remember { SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()) }
+    val labelFmt = remember { SimpleDateFormat("M/d", Locale.getDefault()) }
+    val bars = remember(daily) {
+        (6 downTo 0).map { offset ->
+            val c = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -offset) }
+            val total = daily.firstOrNull { it.day == keyFmt.format(c.time) }?.total ?: 0L
+            labelFmt.format(c.time) to total
+        }
+    }
+    val max = (bars.maxOfOrNull { it.second } ?: 0L).coerceAtLeast(1L)
+    val barColor = MaterialTheme.colorScheme.primary
+    val emptyColor = MaterialTheme.colorScheme.surfaceVariant
+
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(
+            Modifier.fillMaxWidth().height(72.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            bars.forEach { (_, total) ->
+                val frac = (total.toFloat() / max).coerceIn(0.04f, 1f)
+                Box(
+                    Modifier.weight(1f)
+                        .fillMaxHeight(frac)
+                        .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                        .background(if (total > 0) barColor else emptyColor),
+                )
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            bars.forEach { (label, _) ->
+                Text(
+                    label,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+    }
+}
+
 /** 列表视图：使用中状态 + 已保存档案 + 添加。 */
 @Composable
 private fun AiList(
@@ -336,7 +356,6 @@ private fun AiList(
     onAdd: () -> Unit,
 ) {
     val active = profiles.firstOrNull { it.id == activeId } ?: profiles.firstOrNull()
-    // 使用中状态横幅
     if (active != null && active.isConfigured) {
         Row(
             Modifier.fillMaxWidth(),
@@ -454,10 +473,7 @@ private fun AiEditor(
     )
 
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Button(onClick = {
-            vm.saveProfile(build())
-            onSaved()
-        }) { Text("保存") }
+        Button(onClick = { vm.saveProfile(build()); onSaved() }) { Text("保存") }
         OutlinedButton(onClick = {
             testResult = "测试中…"
             vm.testConnection(build().toConfig()) { outcome ->
