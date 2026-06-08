@@ -75,6 +75,22 @@ class AppContainer(context: Context) {
     suspend fun generateDigest(): DigestResult =
         DigestGenerator(db, ::chat).generateForToday()
 
+    // ── 通知来源过滤（默认全收，名单内的被屏蔽）──
+    private val _blockedPackages = MutableStateFlow(
+        prefs.getStringSet(KEY_BLOCKED, emptySet())!!.toSet()
+    )
+    val blockedPackages: StateFlow<Set<String>> = _blockedPackages.asStateFlow()
+
+    /** 监听服务直接调用：该包是否被用户屏蔽。 */
+    fun isBlocked(pkg: String): Boolean = _blockedPackages.value.contains(pkg)
+
+    fun setBlocked(pkg: String, blocked: Boolean) {
+        val set = _blockedPackages.value.toMutableSet()
+        if (blocked) set.add(pkg) else set.remove(pkg)
+        _blockedPackages.value = set
+        prefs.edit().putStringSet(KEY_BLOCKED, set).apply()
+    }
+
     // ── 引导 ──
     var onboarded: Boolean
         get() = prefs.getBoolean(KEY_ONBOARDED, false)
@@ -102,6 +118,7 @@ class AppContainer(context: Context) {
     private companion object {
         const val KEY_RETENTION_DAYS = "retention_days"
         const val KEY_ONBOARDED = "onboarded"
+        const val KEY_BLOCKED = "blocked_packages"
         const val DEFAULT_RETENTION_DAYS = 7
     }
 }

@@ -7,6 +7,13 @@ import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
+/** 出现过通知的 App 及其条数（用于「监听哪些 App」列表）。 */
+data class AppNotifCount(
+    val packageName: String,
+    val appName: String,
+    val count: Int,
+)
+
 @Dao
 interface NotificationDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
@@ -37,6 +44,12 @@ interface NotificationDao {
 
     @Query("SELECT COUNT(*) FROM notifications")
     fun observeCount(): Flow<Int>
+
+    @Query(
+        "SELECT packageName AS packageName, MAX(appName) AS appName, COUNT(*) AS count " +
+            "FROM notifications GROUP BY packageName ORDER BY count DESC"
+    )
+    fun observeApps(): Flow<List<AppNotifCount>>
 
     /** 隐私：清理早于某时间点的原文。 */
     @Query("DELETE FROM notifications WHERE postedAt < :before")

@@ -30,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -111,6 +112,63 @@ fun SettingsScreen(vm: MainViewModel) {
                 )
                 OutlinedButton(onClick = { NotificationAccess.openSettings(context) }) {
                     Text(if (granted) "管理权限" else "去授权")
+                }
+            }
+        }
+
+        // ── 监听哪些 App ──
+        val apps by vm.apps.collectAsState()
+        val blocked by vm.blockedPackages.collectAsState()
+        var showApps by remember { mutableStateOf(false) }
+        Card {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    Modifier.fillMaxWidth().clickable { showApps = !showApps },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text("📥 监听哪些 App", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        if (blocked.isEmpty()) "全部接收 ▾" else "已屏蔽 ${blocked.size} 个 ▾",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.outline,
+                    )
+                }
+                if (showApps) {
+                    if (apps.isEmpty()) {
+                        Text(
+                            "等收到通知后，这里会列出各 App，可单独关掉不想看的。",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    } else {
+                        Text(
+                            "默认全部接收，关掉的 App 之后的通知将被忽略。",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.outline,
+                        )
+                        apps.forEach { app ->
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(app.appName, style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        "${app.count} 条",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.outline,
+                                    )
+                                }
+                                Switch(
+                                    checked = !blocked.contains(app.packageName),
+                                    onCheckedChange = { receive ->
+                                        vm.setAppBlocked(app.packageName, !receive)
+                                    },
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

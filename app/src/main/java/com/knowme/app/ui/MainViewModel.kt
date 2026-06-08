@@ -7,6 +7,7 @@ import com.knowme.app.AppContainer
 import com.knowme.app.ai.AiConfig
 import com.knowme.app.ai.AiOutcome
 import com.knowme.app.ai.AiProfile
+import com.knowme.app.data.db.AppNotifCount
 import com.knowme.app.data.db.AskMessageEntity
 import com.knowme.app.data.db.DigestEntity
 import com.knowme.app.data.db.NotificationEntity
@@ -92,6 +93,12 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
             onResult(result)
         }
     }
+
+    // ── 通知来源过滤 ──
+    val apps: StateFlow<List<AppNotifCount>> =
+        notificationDao.observeApps().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val blockedPackages: StateFlow<Set<String>> = container.blockedPackages
+    fun setAppBlocked(pkg: String, blocked: Boolean) = container.setBlocked(pkg, blocked)
 
     // ── 引导 ──
     val onboarded: Boolean get() = container.onboarded

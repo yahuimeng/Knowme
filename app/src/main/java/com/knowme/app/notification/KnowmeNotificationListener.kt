@@ -3,6 +3,7 @@ package com.knowme.app.notification
 import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import com.knowme.app.KnowmeApp
 import com.knowme.app.data.db.AppDatabase
 import com.knowme.app.data.db.NotificationEntity
 import kotlinx.coroutines.CoroutineScope
@@ -20,6 +21,9 @@ class KnowmeNotificationListener : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         sbn ?: return
+        // 用户在「监听哪些 App」里屏蔽的来源，直接丢弃
+        val container = (applicationContext as KnowmeApp).container
+        if (container.isBlocked(sbn.packageName)) return
         val entity = sbn.toEntity() ?: return
         scope.launch {
             AppDatabase.get(applicationContext).notificationDao().insert(entity)
