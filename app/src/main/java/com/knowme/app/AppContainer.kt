@@ -96,6 +96,7 @@ class AppContainer(context: Context) {
         db.notificationDao().clear()
         db.todoDao().clear()
         db.digestDao().clear()
+        db.askDao().clear()
     }
 
     private companion object {

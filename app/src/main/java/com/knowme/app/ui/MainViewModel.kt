@@ -7,6 +7,7 @@ import com.knowme.app.AppContainer
 import com.knowme.app.ai.AiConfig
 import com.knowme.app.ai.AiOutcome
 import com.knowme.app.ai.AiProfile
+import com.knowme.app.data.db.AskMessageEntity
 import com.knowme.app.data.db.DigestEntity
 import com.knowme.app.data.db.NotificationEntity
 import com.knowme.app.data.db.TodoEntity
@@ -25,6 +26,7 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
     private val notificationDao = container.db.notificationDao()
     private val todoDao = container.db.todoDao()
     private val digestDao = container.db.digestDao()
+    private val askDao = container.db.askDao()
     private val today = DigestGenerator.dayRange()
 
     val notifications: StateFlow<List<NotificationEntity>> =
@@ -102,15 +104,41 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch { container.clearAllData(); onDone() }
     }
 
-    fun ask(question: String, onResult: (AiOutcome) -> Unit) {
+    // ── 问问（带历史）──
+    val askHistory: StateFlow<List<AskMessageEntity>> =
+        askDao.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _asking = MutableStateFlow(false)
+    val asking: StateFlow<Boolean> = _asking.asStateFlow()
+
+    fun ask(question: String) {
+        val q = question.trim()
+        if (q.isEmpty() || _asking.value) return
+        _asking.value = true
         viewModelScope.launch {
             val recent = notificationDao.since(System.currentTimeMillis() - 7L * 24 * 3600 * 1000)
                 .take(80)
                 .joinToString("\n") { "[${it.appName}] ${it.title} ${it.text}" }
             val system = "你是用户的私人通知助理。只依据下面提供的通知记录回答，不要编造。回答简洁。"
-            val user = "通知记录：\n$recent\n\n问题：$question"
-            onResult(container.chat(system, user))
+            val user = "通知记录：\n$recent\n\n问题：$q"
+            val (answer, isError) = when (val r = container.chat(system, user)) {
+                is AiOutcome.Ok -> r.text to false
+                is AiOutcome.Error -> r.message to true
+            }
+            askDao.insert(
+                AskMessageEntity(
+                    question = q,
+                    answer = answer,
+                    isError = isError,
+                    createdAt = System.currentTimeMillis(),
+                )
+            )
+            _asking.value = false
         }
+    }
+
+    fun clearAskHistory() {
+        viewModelScope.launch { askDao.clear() }
     }
 
     class Factory(private val container: AppContainer) : ViewModelProvider.Factory {

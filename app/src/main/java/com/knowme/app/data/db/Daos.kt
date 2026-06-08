@@ -72,6 +72,18 @@ interface TodoDao {
 }
 
 @Dao
+interface AskDao {
+    @Insert
+    suspend fun insert(message: AskMessageEntity): Long
+
+    @Query("SELECT * FROM asks ORDER BY createdAt ASC")
+    fun observeAll(): Flow<List<AskMessageEntity>>
+
+    @Query("DELETE FROM asks")
+    suspend fun clear()
+}
+
+@Dao
 interface DigestDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(digest: DigestEntity)

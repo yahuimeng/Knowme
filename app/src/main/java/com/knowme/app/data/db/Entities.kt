@@ -43,6 +43,16 @@ data class TodoEntity(
     val doneAt: Long? = null,
 )
 
+/** 「问问」的一问一答历史记录。 */
+@Entity(tableName = "asks", indices = [Index("createdAt")])
+data class AskMessageEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val question: String,
+    val answer: String,
+    val isError: Boolean = false,
+    val createdAt: Long,
+)
+
 /**
  * 每日早报（AI 消化结果）。一天一条，便于"今日"页直接读取。
  */
