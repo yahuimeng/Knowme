@@ -95,7 +95,7 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
         if (_digestRunning.value) return
         _digestRunning.value = true
         viewModelScope.launch {
-            val result = container.generateDigest()
+            val result = container.manualGenerate()  // 无新通知则不重复生成
             _digestRunning.value = false
             onResult(result)
         }

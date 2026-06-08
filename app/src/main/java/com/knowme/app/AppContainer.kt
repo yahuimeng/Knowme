@@ -93,6 +93,14 @@ class AppContainer(context: Context) {
         return result
     }
 
+    /** 手动「重新生成」：无新通知则不重复消化（除非从未生成过）。 */
+    suspend fun manualGenerate(): DigestResult {
+        if (lastDigestAt > 0 && !hasNewSinceLastDigest()) {
+            return DigestResult.Error("没有新通知，无需重新生成。")
+        }
+        return generateDigest()
+    }
+
     // ── 自动消化（早报生成方式）──
     var digestMode: DigestAutoMode
         get() = runCatching {

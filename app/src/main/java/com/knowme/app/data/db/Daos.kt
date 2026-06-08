@@ -84,8 +84,12 @@ interface TodoDao {
     @Query("SELECT COUNT(*) FROM todos WHERE content = :content")
     suspend fun countWithContent(content: String): Int
 
-    /** 重新生成早报前，清掉当天自动抽取且未完成的待办，避免重复。 */
-    @Query("DELETE FROM todos WHERE done = 0 AND sourceNotificationId IS NOT NULL AND createdAt >= :since")
+    /**
+     * 重新生成早报前，清掉当天未完成的待办，避免重复累积。
+     * 不再限制 sourceNotificationId（AI 抽的待办常无来源 id），否则永远删不掉会叠加。
+     * 已完成的保留（由 countWithContent 去重，不会被重新加回）。
+     */
+    @Query("DELETE FROM todos WHERE done = 0 AND createdAt >= :since")
     suspend fun deleteAutoUndoneSince(since: Long)
 
     @Query("DELETE FROM todos")
