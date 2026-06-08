@@ -1,22 +1,27 @@
 package com.knowme.app.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.knowme.app.ui.MainViewModel
 import com.knowme.app.ui.dayLabel
@@ -56,27 +61,40 @@ fun TimelineScreen(vm: MainViewModel) {
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
-            items(items.size) { idx ->
-                val n = items[idx]
-                Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Text(
-                            "${formatClock(n.postedAt)}  ${n.appName}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                        )
-                    }
+            items(items, key = { it.id }) { n ->
+                // 点击展开/收起：长通知默认折叠 3 行，点一下看全文
+                var expanded by remember(n.id) { mutableStateOf(false) }
+                var overflowing by remember(n.id) { mutableStateOf(false) }
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { expanded = !expanded }
+                        .padding(vertical = 6.dp),
+                ) {
+                    Text(
+                        "${formatClock(n.postedAt)}  ${n.appName}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                    )
                     val line = listOf(n.title, n.text).filter { it.isNotEmpty() }.joinToString("：")
                     if (line.isNotEmpty()) {
                         Text(
                             line,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 2,
+                            maxLines = if (expanded) Int.MAX_VALUE else 3,
+                            overflow = TextOverflow.Ellipsis,
+                            onTextLayout = { result ->
+                                if (!expanded) overflowing = result.hasVisualOverflow
+                            },
                         )
+                        if (overflowing || expanded) {
+                            Text(
+                                if (expanded) "收起 ▴" else "展开 ▾",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
                     }
                     HorizontalDivider(Modifier.padding(top = 6.dp))
                 }
