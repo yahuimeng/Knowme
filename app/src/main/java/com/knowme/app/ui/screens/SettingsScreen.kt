@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -41,6 +42,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,9 +72,16 @@ fun SettingsScreen(vm: MainViewModel) {
     val context = LocalContext.current
     val profiles by vm.profiles.collectAsState()
     val activeId by vm.activeId.collectAsState()
+    val tokens by vm.tokenTotals.collectAsState()
+    val tokensToday by vm.tokenTotalsToday.collectAsState()
+    val daily by vm.dailyTokens.collectAsState()
+    val apps by vm.apps.collectAsState()
+    val blocked by vm.blockedPackages.collectAsState()
 
     var editing by remember { mutableStateOf<AiProfile?>(null) }
     var retention by remember { mutableStateOf(vm.retentionDays) }
+    var digestMode by remember { mutableStateOf(vm.digestMode) }
+    var interval by remember { mutableStateOf(vm.digestIntervalMin) }
     var showClearDialog by remember { mutableStateOf(false) }
 
     Column(
@@ -82,200 +91,180 @@ fun SettingsScreen(vm: MainViewModel) {
         Spacer(Modifier.height(8.dp))
         Text("我的", style = MaterialTheme.typography.headlineSmall)
 
-        // ① AI 服务（永远第一）
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("🤖 AI 服务（你自己的 key）", style = MaterialTheme.typography.titleMedium)
-                val current = editing
-                if (current == null) {
-                    AiList(
-                        profiles = profiles,
-                        activeId = activeId,
-                        onSelect = { vm.setActive(it) },
-                        onEdit = { editing = it },
-                        onAdd = { editing = AiProfile(id = UUID.randomUUID().toString(), name = "") },
-                    )
-                } else {
-                    AiEditor(
-                        profile = current,
-                        isNew = profiles.none { it.id == current.id },
-                        vm = vm,
-                        onSaved = { editing = null },
-                        onCancel = { editing = null },
-                        onDeleted = { vm.deleteProfile(current.id); editing = null },
-                    )
-                }
-            }
-        }
-
-        // ② Token 用量（常看，紧跟 AI）
-        val tokens by vm.tokenTotals.collectAsState()
-        val tokensToday by vm.tokenTotalsToday.collectAsState()
-        val daily by vm.dailyTokens.collectAsState()
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("📊 Token 用量", style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "今日 ${formatTokens(tokensToday.input + tokensToday.output)} · 总计 ${formatTokens(tokens.input + tokens.output)} · 共 ${tokens.calls} 次调用",
-                    style = MaterialTheme.typography.bodyLarge,
+        // ① AI 服务（永远第一，默认展开）
+        val active = profiles.firstOrNull { it.id == activeId } ?: profiles.firstOrNull()
+        CollapsibleCard(
+            title = "🤖 AI 服务",
+            summary = active?.takeIf { it.isConfigured }?.let { it.name.ifBlank { it.backend.label } } ?: "未配置",
+            initiallyExpanded = true,
+        ) {
+            val current = editing
+            if (current == null) {
+                AiList(
+                    profiles = profiles,
+                    activeId = activeId,
+                    onSelect = { vm.setActive(it) },
+                    onEdit = { editing = it },
+                    onAdd = { editing = AiProfile(id = UUID.randomUUID().toString(), name = "") },
                 )
-                TokenBarChart(daily)
-                Text(
-                    "近 7 天每日用量。按 AI 接口上报统计，本地模型可能不上报。",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.outline,
+            } else {
+                AiEditor(
+                    profile = current,
+                    isNew = profiles.none { it.id == current.id },
+                    vm = vm,
+                    onSaved = { editing = null },
+                    onCancel = { editing = null },
+                    onDeleted = { vm.deleteProfile(current.id); editing = null },
                 )
             }
         }
 
-        // ③ 监听哪些 App（频繁调整，往上）
-        val apps by vm.apps.collectAsState()
-        val blocked by vm.blockedPackages.collectAsState()
-        var showApps by remember { mutableStateOf(false) }
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(
-                    Modifier.fillMaxWidth().clickable { showApps = !showApps },
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text("📥 监听哪些 App", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        if (blocked.isEmpty()) "全部接收 ▾" else "已屏蔽 ${blocked.size} 个 ▾",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outline,
-                    )
-                }
-                if (showApps) {
-                    if (apps.isEmpty()) {
-                        Text(
-                            "等收到通知后，这里会列出各 App，可单独关掉不想看的。",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    } else {
-                        Text(
-                            "默认全部接收，关掉的 App 之后的通知将被忽略。",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.outline,
-                        )
-                        apps.forEach { app ->
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(app.appName, style = MaterialTheme.typography.bodyLarge)
-                                    Text(
-                                        "${app.count} 条",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.outline,
-                                    )
-                                }
-                                Switch(
-                                    checked = !blocked.contains(app.packageName),
-                                    onCheckedChange = { receive -> vm.setAppBlocked(app.packageName, !receive) },
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+        // ② Token 用量
+        CollapsibleCard(
+            title = "📊 Token 用量",
+            summary = "今日 ${formatTokens(tokensToday.input + tokensToday.output)}",
+        ) {
+            Text(
+                "今日 ${formatTokens(tokensToday.input + tokensToday.output)} · 总计 ${formatTokens(tokens.input + tokens.output)} · 共 ${tokens.calls} 次调用",
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            TokenBarChart(daily)
+            Text(
+                "近 7 天每日用量。按 AI 接口上报统计，本地模型可能不上报。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.outline,
+            )
         }
 
-        // ③ 自动消化
-        var digestMode by remember { mutableStateOf(vm.digestMode) }
-        var interval by remember { mutableStateOf(vm.digestIntervalMin) }
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("🔄 自动消化", style = MaterialTheme.typography.titleMedium)
+        // ③ 监听哪些 App
+        CollapsibleCard(
+            title = "📥 监听哪些 App",
+            summary = if (blocked.isEmpty()) "全部接收" else "已屏蔽 ${blocked.size} 个",
+        ) {
+            if (apps.isEmpty()) {
                 Text(
-                    "早报什么时候自动生成。自动模式都按下方间隔节流，且无新通知不消化，避免烧 token。",
+                    "等收到通知后，这里会列出各 App，可单独关掉不想看的。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(
-                        DigestAutoMode.MANUAL to "手动",
-                        DigestAutoMode.ON_OPEN to "打开App时",
-                        DigestAutoMode.PERIODIC to "定时",
-                    ).forEach { (m, label) ->
-                        FilterChip(
-                            selected = digestMode == m,
-                            onClick = { digestMode = m; vm.setDigestMode(m, interval) },
-                            label = { Text(label) },
-                        )
-                    }
-                }
-                if (digestMode != DigestAutoMode.MANUAL) {
-                    Text("间隔", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(15, 30, 60).forEach { min ->
-                            FilterChip(
-                                selected = interval == min,
-                                onClick = { interval = min; vm.setDigestMode(digestMode, min) },
-                                label = { Text("${min}分钟") },
+            } else {
+                Text(
+                    "默认全部接收，关掉的 App 之后的通知将被忽略。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.outline,
+                )
+                apps.forEach { app ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(app.appName, style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                "${app.count} 条",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.outline,
                             )
                         }
-                    }
-                }
-                Text(
-                    when (digestMode) {
-                        DigestAutoMode.MANUAL -> "仅在「今日」页点按钮时生成。"
-                        DigestAutoMode.ON_OPEN -> "每次打开「今日」页，若距上次≥间隔且有新通知才自动生成（推荐）。"
-                        DigestAutoMode.PERIODIC -> "后台每隔间隔生成一次（系统限制最短 15 分钟，较费电）。"
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.outline,
-                )
-            }
-        }
-
-        // ④ 权限与后台（三按钮一行，放在隐私之上）
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("🔐 权限与后台", style = MaterialTheme.typography.titleMedium)
-                val granted = NotificationAccess.isGranted(context)
-                Text(
-                    if (granted)
-                        "通知读取已授权。国产手机还需手动开「自启动」+电池「无限制」，否则息屏后可能漏收。"
-                    else
-                        "先授予「通知读取」才能开始工作；国产手机还要开自启动 + 电池无限制。",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = { NotificationAccess.openSettings(context) },
-                        modifier = Modifier.weight(1f),
-                    ) { Text("通知") }
-                    OutlinedButton(
-                        onClick = { BackgroundGuide.openBatterySettings(context) },
-                        modifier = Modifier.weight(1f),
-                    ) { Text("电池优化") }
-                    OutlinedButton(
-                        onClick = { BackgroundGuide.openAppDetails(context) },
-                        modifier = Modifier.weight(1f),
-                    ) { Text("自启动") }
-                }
-            }
-        }
-
-        // ⑤ 隐私与数据
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("🔒 隐私与数据", style = MaterialTheme.typography.titleMedium)
-                Text("· 全部数据仅存在本机，没有服务器。", style = MaterialTheme.typography.bodyMedium)
-                Text("· AI 调用由你的手机直接发往你选的服务，开发者不在链路里。", style = MaterialTheme.typography.bodyMedium)
-                Text("原文保留期", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(3 to "3天", 7 to "7天", 30 to "30天", 0 to "永久").forEach { (days, label) ->
-                        FilterChip(
-                            selected = retention == days,
-                            onClick = { retention = days; vm.setRetentionDays(days) },
-                            label = { Text(label) },
+                        Switch(
+                            checked = !blocked.contains(app.packageName),
+                            onCheckedChange = { receive -> vm.setAppBlocked(app.packageName, !receive) },
                         )
                     }
                 }
-                OutlinedButton(onClick = { showClearDialog = true }) { Text("清空全部数据") }
             }
+        }
+
+        // ④ 自动消化
+        val modeLabel = when (digestMode) {
+            DigestAutoMode.MANUAL -> "手动"
+            DigestAutoMode.ON_OPEN -> "打开App时 · ${interval}分钟"
+            DigestAutoMode.PERIODIC -> "定时 · ${interval}分钟"
+        }
+        CollapsibleCard(title = "🔄 自动消化", summary = modeLabel) {
+            Text(
+                "早报什么时候自动生成。自动模式都按下方间隔节流，且无新通知不消化，避免烧 token。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(
+                    DigestAutoMode.MANUAL to "手动",
+                    DigestAutoMode.ON_OPEN to "打开App时",
+                    DigestAutoMode.PERIODIC to "定时",
+                ).forEach { (m, label) ->
+                    FilterChip(
+                        selected = digestMode == m,
+                        onClick = { digestMode = m; vm.setDigestMode(m, interval) },
+                        label = { Text(label) },
+                    )
+                }
+            }
+            if (digestMode != DigestAutoMode.MANUAL) {
+                Text("间隔", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(15, 30, 60).forEach { min ->
+                        FilterChip(
+                            selected = interval == min,
+                            onClick = { interval = min; vm.setDigestMode(digestMode, min) },
+                            label = { Text("${min}分钟") },
+                        )
+                    }
+                }
+            }
+            Text(
+                when (digestMode) {
+                    DigestAutoMode.MANUAL -> "仅在「今日」页点按钮时生成。"
+                    DigestAutoMode.ON_OPEN -> "每次打开「今日」页，若距上次≥间隔且有新通知才自动生成（推荐）。"
+                    DigestAutoMode.PERIODIC -> "后台每隔间隔生成一次（系统限制最短 15 分钟，较费电）。"
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.outline,
+            )
+        }
+
+        // ⑤ 权限与后台（一次性，靠下）
+        val granted = NotificationAccess.isGranted(context)
+        CollapsibleCard(title = "🔐 权限与后台", summary = if (granted) "已授权" else "未授权") {
+            Text(
+                if (granted)
+                    "通知读取已授权。国产手机还需手动开「自启动」+电池「无限制」，否则息屏后可能漏收。"
+                else
+                    "先授予「通知读取」才能开始工作；国产手机还要开自启动 + 电池无限制。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = { NotificationAccess.openSettings(context) },
+                    modifier = Modifier.weight(1f),
+                ) { Text("通知") }
+                OutlinedButton(
+                    onClick = { BackgroundGuide.openBatterySettings(context) },
+                    modifier = Modifier.weight(1f),
+                ) { Text("电池") }
+                OutlinedButton(
+                    onClick = { BackgroundGuide.openAppDetails(context) },
+                    modifier = Modifier.weight(1f),
+                ) { Text("自启动") }
+            }
+        }
+
+        // ⑥ 隐私与数据（不频繁，最底）
+        CollapsibleCard(
+            title = "🔒 隐私与数据",
+            summary = if (retention == 0) "永久保留" else "保留 ${retention} 天",
+        ) {
+            Text("· 全部数据仅存在本机，没有服务器。", style = MaterialTheme.typography.bodyMedium)
+            Text("· AI 调用由你的手机直接发往你选的服务，开发者不在链路里。", style = MaterialTheme.typography.bodyMedium)
+            Text("原文保留期", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(3 to "3天", 7 to "7天", 30 to "30天", 0 to "永久").forEach { (days, label) ->
+                    FilterChip(
+                        selected = retention == days,
+                        onClick = { retention = days; vm.setRetentionDays(days) },
+                        label = { Text(label) },
+                    )
+                }
+            }
+            OutlinedButton(onClick = { showClearDialog = true }) { Text("清空全部数据") }
         }
 
         if (showClearDialog) {
@@ -297,6 +286,46 @@ fun SettingsScreen(vm: MainViewModel) {
             color = MaterialTheme.colorScheme.outline,
         )
         Spacer(Modifier.height(16.dp))
+    }
+}
+
+/**
+ * 可折叠卡片：点标题展开/收起。收起时只显示标题 + 一句摘要，缩短页面长度。
+ * 展开状态用 rememberSaveable 记住。
+ */
+@Composable
+private fun CollapsibleCard(
+    title: String,
+    summary: String? = null,
+    initiallyExpanded: Boolean = false,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    var expanded by rememberSaveable(title) { mutableStateOf(initiallyExpanded) }
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                Modifier.fillMaxWidth().clickable { expanded = !expanded },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (!expanded && summary != null) {
+                        Text(
+                            summary,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.outline,
+                        )
+                    }
+                    Text(
+                        if (expanded) "  ▴" else "  ▾",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.outline,
+                    )
+                }
+            }
+            if (expanded) content()
+        }
     }
 }
 
