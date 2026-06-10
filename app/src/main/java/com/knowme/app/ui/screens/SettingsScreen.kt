@@ -28,8 +28,10 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -484,27 +486,31 @@ private fun AiEditor(
             )
         }
     }
-    OutlinedTextField(
-        value = baseUrl, onValueChange = { baseUrl = it },
-        label = { Text("接口地址") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-    )
-    OutlinedTextField(
-        value = apiKey, onValueChange = { apiKey = it },
-        label = { Text("API Key") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-        visualTransformation = if (keyVisible) VisualTransformation.None else PasswordVisualTransformation(),
-        trailingIcon = {
-            IconButton(onClick = { keyVisible = !keyVisible }) {
-                Icon(
-                    if (keyVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                    contentDescription = null,
-                )
-            }
-        },
-    )
-    OutlinedTextField(
-        value = model, onValueChange = { model = it },
-        label = { Text("模型") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-    )
+    if (backend == AiBackend.LOCAL) {
+        LocalModelConfig(vm = vm, selected = model, onSelect = { model = it })
+    } else {
+        OutlinedTextField(
+            value = baseUrl, onValueChange = { baseUrl = it },
+            label = { Text("接口地址") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+        )
+        OutlinedTextField(
+            value = apiKey, onValueChange = { apiKey = it },
+            label = { Text("API Key") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+            visualTransformation = if (keyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            trailingIcon = {
+                IconButton(onClick = { keyVisible = !keyVisible }) {
+                    Icon(
+                        if (keyVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                        contentDescription = null,
+                    )
+                }
+            },
+        )
+        OutlinedTextField(
+            value = model, onValueChange = { model = it },
+            label = { Text("模型") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+        )
+    }
 
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Button(onClick = { vm.saveProfile(build()); onSaved() }) { Text("保存") }
@@ -529,8 +535,85 @@ private fun AiEditor(
     }
 
     Text(
-        "🔑 key 用 Android Keystore 加密存在本机，绝不上传。",
+        if (backend == AiBackend.LOCAL) "📴 本地模型完全离线运行，不联网、不花 token。"
+        else "🔑 key 用 Android Keystore 加密存在本机，绝不上传。",
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.outline,
     )
+}
+
+/** 本地模型配置：选择已下载模型 + 下载新模型。 */
+@Composable
+private fun LocalModelConfig(vm: MainViewModel, selected: String, onSelect: (String) -> Unit) {
+    val models by vm.localModels.collectAsState()
+    val progress by vm.downloadProgress.collectAsState()
+    var dlName by remember { mutableStateOf("") }
+    var dlUrl by remember { mutableStateOf("") }
+    var msg by remember { mutableStateOf<String?>(null) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("选择本地模型", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+        if (models.isEmpty()) {
+            Text(
+                "还没有本地模型，在下面下载一个（.task / LiteRT 格式）。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        models.forEach { m ->
+            Row(
+                Modifier.fillMaxWidth().clickable { onSelect(m) },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(selected = selected == m, onClick = { onSelect(m) })
+                Text(m, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                IconButton(onClick = { vm.deleteModel(m) }) {
+                    Icon(Icons.Filled.Delete, contentDescription = "删除", modifier = Modifier.size(18.dp))
+                }
+            }
+        }
+
+        HorizontalDivider()
+        Text("下载模型", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+        OutlinedTextField(
+            value = dlName, onValueChange = { dlName = it },
+            label = { Text("保存文件名（如 gemma3-1b.task）") },
+            modifier = Modifier.fillMaxWidth(), singleLine = true,
+        )
+        OutlinedTextField(
+            value = dlUrl, onValueChange = { dlUrl = it },
+            label = { Text("模型下载直链 URL") },
+            modifier = Modifier.fillMaxWidth(), singleLine = true,
+        )
+        val p = progress
+        if (p != null) {
+            if (p >= 0f) {
+                LinearProgressIndicator(progress = { p.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+                Text("下载中 ${(p * 100).toInt()}%", style = MaterialTheme.typography.bodyMedium)
+            } else {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                Text("下载中…", style = MaterialTheme.typography.bodyMedium)
+            }
+        } else {
+            Button(
+                onClick = {
+                    msg = null
+                    if (dlUrl.isBlank() || dlName.isBlank()) {
+                        msg = "请填写文件名和下载链接。"
+                    } else {
+                        vm.downloadModel(dlUrl, dlName) { r ->
+                            msg = r.fold({ "✅ 下载完成，可在上方选择" }, { "❌ ${it.message}" })
+                            if (r.isSuccess) { dlName = ""; dlUrl = "" }
+                        }
+                    }
+                },
+            ) { Text("下载") }
+        }
+        msg?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+        Text(
+            "模型通常 1~2.5GB，建议 WiFi。机型/内存不足时推理会失败。中文推荐 Qwen 类（需 LiteRT 格式）。",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.outline,
+        )
+    }
 }

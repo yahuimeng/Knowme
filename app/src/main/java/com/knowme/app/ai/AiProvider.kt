@@ -19,6 +19,8 @@ interface AiProvider {
         fun forBackend(backend: AiBackend): AiProvider = when (backend) {
             AiBackend.ANTHROPIC -> AnthropicProvider
             AiBackend.OPENAI_COMPAT -> OpenAiCompatProvider
+            // 本地模型不走 HTTP Provider，由 AppContainer 直接路由到端侧引擎
+            AiBackend.LOCAL -> error("LOCAL backend does not use an HTTP provider")
         }
     }
 }

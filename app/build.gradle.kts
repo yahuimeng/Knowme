@@ -17,6 +17,8 @@ android {
         versionCode = 1
         versionName = "1.0.0"
         vectorDrawables { useSupportLibrary = true }
+        // 只保留 arm64（现代手机）；端侧推理本就需在真机测，可大幅减小 native 库体积
+        ndk { abiFilters += listOf("arm64-v8a") }
     }
 
     buildTypes {
@@ -73,4 +75,7 @@ dependencies {
     implementation(libs.ktor.client.okhttp)
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.serialization.kotlinx.json)
+
+    // 内嵌端侧推理（MediaPipe LLM Inference / LiteRT），native 库随 AAR 预编译
+    implementation(libs.mediapipe.tasks.genai)
 }

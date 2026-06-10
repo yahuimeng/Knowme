@@ -9,6 +9,8 @@ enum class AiBackend(val label: String, val defaultBaseUrl: String, val defaultM
     ANTHROPIC("Claude", "https://api.anthropic.com", "claude-opus-4-8"),
     // OpenAI 兼容接口：豆包 / DeepSeek / 本地 Ollama 等都走这条
     OPENAI_COMPAT("OpenAI 兼容", "https://api.openai.com", "gpt-4o-mini"),
+    // 内嵌端侧模型（MediaPipe/LiteRT），离线运行，model 字段=本地模型文件名
+    LOCAL("本地模型", "", ""),
 }
 
 /**
@@ -35,7 +37,12 @@ data class AiConfig(
     val apiKey: String = "",
     val model: String = AiBackend.ANTHROPIC.defaultModel,
 ) {
-    val isConfigured: Boolean get() = apiKey.isNotBlank() && baseUrl.isNotBlank() && model.isNotBlank()
+    val isConfigured: Boolean
+        get() = when (backend) {
+            // 本地模型只需选好模型文件，不需要地址/key
+            AiBackend.LOCAL -> model.isNotBlank()
+            else -> apiKey.isNotBlank() && baseUrl.isNotBlank() && model.isNotBlank()
+        }
 }
 
 /** 统一的对话结果（成功返回文本+token用量，失败带错误信息）。 */

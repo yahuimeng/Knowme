@@ -17,3 +17,9 @@
 -dontwarn io.ktor.**
 -keep class io.ktor.** { *; }
 -keepclassmembers class io.ktor.** { *; }
+
+# MediaPipe LLM Inference（端侧推理）
+-keep class com.google.mediapipe.** { *; }
+-dontwarn com.google.mediapipe.**
+-dontwarn com.google.auto.value.**
+-dontwarn com.google.protobuf.**

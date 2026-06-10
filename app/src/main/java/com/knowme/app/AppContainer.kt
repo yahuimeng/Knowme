@@ -1,19 +1,26 @@
 package com.knowme.app
 
 import android.content.Context
+import com.knowme.app.ai.AiBackend
 import com.knowme.app.ai.AiConfig
 import com.knowme.app.ai.AiOutcome
 import com.knowme.app.ai.AiProfile
 import com.knowme.app.ai.AiProvider
+import com.knowme.app.ai.LocalLlmEngine
+import com.knowme.app.ai.LocalModelManager
 import com.knowme.app.ai.SecureConfigStore
 import com.knowme.app.data.db.AppDatabase
 import com.knowme.app.digest.DigestAutoMode
 import com.knowme.app.digest.DigestGenerator
 import com.knowme.app.digest.DigestResult
 import com.knowme.app.digest.DigestScheduler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 /**
  * 极简服务定位器（不引入 DI 框架）。持有数据库、加密配置、AI 调用入口。
@@ -21,9 +28,18 @@ import kotlinx.coroutines.flow.asStateFlow
 class AppContainer(context: Context) {
 
     private val appContext = context.applicationContext
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     val db: AppDatabase = AppDatabase.get(context)
     private val secureStore = SecureConfigStore(context)
     private val prefs = context.getSharedPreferences("knowme_prefs", Context.MODE_PRIVATE)
+
+    // 端侧本地模型
+    private val localEngine = LocalLlmEngine(appContext)
+    private val modelManager = LocalModelManager(appContext)
+    private val _localModels = MutableStateFlow(modelManager.listModels())
+    val localModels: StateFlow<List<String>> = _localModels.asStateFlow()
+    private val _downloadProgress = MutableStateFlow<Float?>(null)  // null=空闲
+    val downloadProgress: StateFlow<Float?> = _downloadProgress.asStateFlow()
 
     private val _profiles = MutableStateFlow(secureStore.loadProfiles())
     val profiles: StateFlow<List<AiProfile>> = _profiles.asStateFlow()
@@ -59,12 +75,12 @@ class AppContainer(context: Context) {
         secureStore.setActiveId(id)
     }
 
-    /** 用当前使用中的档案发起一次单轮对话，并记录 token 用量。 */
+    /** 用当前使用中的档案发起一次单轮对话，并记录 token 用量（本地模型不计）。 */
     suspend fun chat(systemPrompt: String, userPrompt: String, kind: String = "chat"): AiOutcome {
         val config = activeProfile()?.toConfig()
             ?: return AiOutcome.Error("还没配置 AI：请先到「我的 → AI 服务」添加并选择一个服务。")
-        if (!config.isConfigured) return AiOutcome.Error("当前 AI 服务信息不完整，请检查 key 与模型。")
-        val outcome = AiProvider.forBackend(config.backend).complete(config, systemPrompt, userPrompt)
+        if (!config.isConfigured) return AiOutcome.Error("当前 AI 服务信息不完整，请检查配置。")
+        val outcome = runComplete(config, systemPrompt, userPrompt)
         if (outcome is AiOutcome.Ok && (outcome.inputTokens > 0 || outcome.outputTokens > 0)) {
             db.tokenUsageDao().insert(
                 com.knowme.app.data.db.TokenUsageEntity(
@@ -79,11 +95,35 @@ class AppContainer(context: Context) {
         return outcome
     }
 
+    /** 按后端类型分发：本地走端侧引擎，其余走 HTTP。 */
+    private suspend fun runComplete(config: AiConfig, system: String, user: String): AiOutcome =
+        if (config.backend == AiBackend.LOCAL) {
+            localEngine.complete(modelManager.pathFor(config.model), system, user)
+        } else {
+            AiProvider.forBackend(config.backend).complete(config, system, user)
+        }
+
     /** 设置页"测试连接"用：对指定配置发一句最小探活。 */
     suspend fun testConnection(config: AiConfig): AiOutcome {
-        if (!config.isConfigured) return AiOutcome.Error("请先填完接口地址、key 和模型。")
-        return AiProvider.forBackend(config.backend)
-            .complete(config, "You are a connectivity probe.", "回复 ok 即可。")
+        if (!config.isConfigured) return AiOutcome.Error("请先填完配置。")
+        return runComplete(config, "You are a connectivity probe.", "回复 ok 即可。")
+    }
+
+    // ── 本地模型管理 ──
+    fun downloadModel(url: String, name: String, onDone: (Result<Unit>) -> Unit) {
+        if (_downloadProgress.value != null) return  // 已在下载
+        _downloadProgress.value = 0f
+        scope.launch {
+            val result = modelManager.download(url.trim(), name.trim()) { p -> _downloadProgress.value = p }
+            _localModels.value = modelManager.listModels()
+            _downloadProgress.value = null
+            onDone(result)
+        }
+    }
+
+    fun deleteModel(name: String) {
+        modelManager.delete(name)
+        _localModels.value = modelManager.listModels()
     }
 
     /** 生成今天的早报；成功后记录时间戳（供自动模式节流）。 */

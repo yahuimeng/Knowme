@@ -72,6 +72,13 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
     fun deleteProfile(id: String) = container.deleteProfile(id)
     fun setActive(id: String) = container.setActive(id)
 
+    // ── 本地模型 ──
+    val localModels: StateFlow<List<String>> = container.localModels
+    val downloadProgress: StateFlow<Float?> = container.downloadProgress
+    fun downloadModel(url: String, name: String, onDone: (Result<Unit>) -> Unit) =
+        container.downloadModel(url, name, onDone)
+    fun deleteModel(name: String) = container.deleteModel(name)
+
     fun testConnection(config: AiConfig, onResult: (AiOutcome) -> Unit) {
         viewModelScope.launch { onResult(container.testConnection(config)) }
     }
