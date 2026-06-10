@@ -103,20 +103,42 @@ class DigestGenerator(
             }
         }
 
-        // 4) 重新读取最新分类，统计并出叙事（lean 一律用本地叙事，避免小模型胡写）
+        // 4) 重新读取最新分类，统计并出叙事
         val fresh = db.notificationDao().between(start, end)
         val high = fresh.count { it.priority == Priority.HIGH }
         val noise = fresh.count { it.priority == Priority.LOW }
+        val narrative = if (lean) leanNarrative(fresh) else (aiNarrative ?: localNarrative(fresh))
         db.digestDao().upsert(
             DigestEntity(
                 dateKey = dateKey,
-                narrative = if (lean) localNarrative(fresh) else (aiNarrative ?: localNarrative(fresh)),
+                narrative = narrative,
                 notificationCount = fresh.size,
                 noiseFolded = noise,
                 generatedAt = System.currentTimeMillis(),
             )
         )
         return DigestResult.Ok(handled = high, noiseFolded = noise, todos = todoCount)
+    }
+
+    /**
+     * 本地模型的"聚焦总结"：只把判出来的重要几条喂给小模型，让它用一句话概括，
+     * 是真内容、不重复数字。失败/离谱则回退本地模板。
+     */
+    private suspend fun leanNarrative(all: List<NotificationEntity>): String {
+        val important = all.filter { it.priority == Priority.HIGH } +
+            all.filter { it.priority == Priority.MID }
+        if (important.isEmpty()) return localNarrative(all)
+        val lines = important.take(10).joinToString("\n") { n ->
+            "${n.appName}: ${cleanText("${n.title} ${n.text}").take(40)}"
+        }
+        val outcome = chat(
+            LEAN_SUMMARY_SYSTEM,
+            "下面是我今天比较重要的通知。用一句话（40字以内）概括我今天需要关注/处理什么，" +
+                "像同事口头跟我汇报，平实直接；不要客套、不要分点、不要解释：\n$lines",
+        )
+        val text = ((outcome as? AiOutcome.Ok)?.text ?: "").trim().replace(Regex("\\s+"), " ")
+        // 质量兜底：空 / 过长（多半跑飞了）→ 回退本地模板
+        return if (text.isBlank() || text.length > 80) localNarrative(all) else text
     }
 
     /** 清洗通知文本：去 URL/方括号/多余空白，便于小模型聚焦。 */
@@ -213,6 +235,8 @@ class DigestGenerator(
             "你是用户的私人通知管家。任务是把一堆杂乱通知消化成清晰的每日早报。只输出 JSON，不要解释。"
         private const val LEAN_SYSTEM =
             "你是通知优先级分类器。严格按要求逐行输出，不要任何多余文字。"
+        private const val LEAN_SUMMARY_SYSTEM =
+            "你是简洁的汇报助手。只输出一句话概括，不要分点、不要解释、不要客套。"
         private const val LEAN_MAX = 25   // 本地小模型一次最多判这么多条，避免撑爆/变慢
 
         private val dateFmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())

@@ -544,7 +544,7 @@ private fun AiEditor(
     )
 }
 
-/** 本地模型配置：选择已下载模型 + 下载新模型。 */
+/** 本地模型配置：选择模型 / 导入 .gguf / 运行控制 / 获取指引。 */
 @Composable
 private fun LocalModelConfig(vm: MainViewModel, selected: String, onSelect: (String) -> Unit) {
     val models by vm.localModels.collectAsState()
@@ -555,46 +555,42 @@ private fun LocalModelConfig(vm: MainViewModel, selected: String, onSelect: (Str
         if (uri != null) {
             msg = null
             vm.importModel(uri) { r ->
-                msg = r.fold({ "✅ 已导入 $it" }, { "❌ ${it.message}" })
+                msg = r.fold({ "✅ 已导入并选用 $it" }, { "❌ ${it.message}" })
                 r.getOrNull()?.let { onSelect(it) }
             }
         }
     }
+    val importing = progress != null
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("已导入的本地模型", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-        if (models.isEmpty()) {
-            Text(
-                "还没有本地模型。先按下面指引下载 .gguf，再点「选择文件」导入。",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        models.forEach { m ->
-            Row(
-                Modifier.fillMaxWidth().clickable { onSelect(m) },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                RadioButton(selected = selected == m, onClick = { onSelect(m) })
-                Text(m, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                IconButton(onClick = { vm.deleteModel(m) }) {
-                    Icon(Icons.Filled.Delete, contentDescription = "删除", modifier = Modifier.size(18.dp))
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // ① 选择模型
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("选择模型", style = MaterialTheme.typography.titleSmall)
+            if (models.isEmpty()) {
+                Text(
+                    "还没有模型，点下面「导入 .gguf 文件」加一个。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                models.forEach { m ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable { onSelect(m) },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = selected == m, onClick = { onSelect(m) })
+                        Text(m, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                        IconButton(onClick = { vm.deleteModel(m) }) {
+                            Icon(Icons.Filled.Delete, contentDescription = "删除", modifier = Modifier.size(18.dp))
+                        }
+                    }
                 }
             }
         }
-        if (models.isNotEmpty()) {
-            OutlinedButton(onClick = { vm.stopLocalModel() }) { Text("停止本地模型（释放内存）") }
-            Text(
-                "模型首次加载后会常驻内存以加快后续生成；点上面可手动卸载，进程退出也会自动释放。",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.outline,
-            )
-        }
 
-        HorizontalDivider()
-
-        val p = progress
-        if (p != null) {
+        // ② 导入
+        if (importing) {
+            val p = progress ?: 0f
             if (p >= 0f) {
                 LinearProgressIndicator(progress = { p.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
                 Text("导入中 ${(p * 100).toInt()}%（大文件较慢，请稍候）", style = MaterialTheme.typography.bodyMedium)
@@ -603,18 +599,32 @@ private fun LocalModelConfig(vm: MainViewModel, selected: String, onSelect: (Str
                 Text("导入中…", style = MaterialTheme.typography.bodyMedium)
             }
         } else {
-            Button(onClick = { msg = null; picker.launch(arrayOf("*/*")) }) {
-                Text("选择 .gguf 文件")
+            Button(
+                onClick = { msg = null; picker.launch(arrayOf("*/*")) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text("  导入 .gguf 文件")
             }
         }
         msg?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
 
-        Text("怎么获取模型", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+        HorizontalDivider()
+
+        // ③ 运行控制（次要）+ 获取指引
+        if (models.isNotEmpty()) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("模型常驻内存以加快生成", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
+                TextButton(onClick = { vm.stopLocalModel() }) { Text("停止释放") }
+            }
+        }
         Text(
-            "1. 用手机浏览器去 HuggingFace（或国内镜像 hf-mirror.com），搜 “Qwen2.5 GGUF”。\n" +
-                "2. 推荐下载 Qwen2.5-3B-Instruct 的 Q4_K_M（约 2GB，中文好、多数手机能跑）；低配机选 1.5B。\n" +
-                "3. 下到手机后，点上面「选择 .gguf 文件」选中它即可。\n" +
-                "需 ~3GB 空闲内存，机型/内存不足推理会失败。",
+            "获取模型：手机浏览器去 hf-mirror.com 搜 “Qwen2.5 GGUF”，下 3B 的 Q4_K_M（约2GB，中文好）；" +
+                "低配机用 1.5B。下完点上面「导入」选它。需 ~3GB 空闲内存。",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.outline,
         )
