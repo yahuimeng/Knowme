@@ -17,9 +17,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -33,6 +35,8 @@ import com.knowme.app.ui.formatClock
 fun TimelineScreen(vm: MainViewModel) {
     val notifications by vm.notifications.collectAsState()
     val byDay = notifications.groupBy { dayLabel(it.postedAt) }
+    // 每天可折叠：默认只展开"今天"，其余收起（记住用户手动开合）
+    val expandedDays = remember { mutableStateMapOf<String, Boolean>() }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -53,19 +57,32 @@ fun TimelineScreen(vm: MainViewModel) {
             }
         }
         byDay.forEach { (day, dayItems) ->
-            item {
+            val dayExpanded = expandedDays[day] ?: (day == "今天")
+            item(key = "day-$day") {
                 Spacer(Modifier.height(10.dp))
-                Text(
-                    day,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-                Spacer(Modifier.height(2.dp))
+                Row(
+                    Modifier.fillMaxWidth().clickable { expandedDays[day] = !dayExpanded }.padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        day,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        "${dayItems.size} 条 ${if (dayExpanded) "▴" else "▾"}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.outline,
+                    )
+                }
             }
-            // 天内按 App 聚合，App 顺序 = 最新一条的先后
-            val byApp = dayItems.groupBy { it.packageName }.values.toList()
-            items(byApp, key = { it.first().id }) { group -> AppGroupItem(group) }
+            if (dayExpanded) {
+                // 天内按 App 聚合，App 顺序 = 最新一条的先后
+                val byApp = dayItems.groupBy { it.packageName }.values.toList()
+                items(byApp, key = { it.first().id }) { group -> AppGroupItem(group) }
+            }
         }
         item { Spacer(Modifier.height(16.dp)) }
     }
