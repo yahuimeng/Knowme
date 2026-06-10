@@ -127,6 +127,14 @@ class AppContainer(context: Context) {
         _localModels.value = modelManager.listModels()
     }
 
+    /** 本地模型是否已常驻内存（供播放/停止按钮）。 */
+    val localModelLoaded: StateFlow<Boolean> = localEngine.loaded
+
+    /** 主动启动（预加载）指定模型。 */
+    fun startLocalModel(modelName: String) {
+        scope.launch { localEngine.load(modelManager.pathFor(modelName)) }
+    }
+
     /** 手动停止常驻的本地模型，释放内存。 */
     fun stopLocalModel() {
         scope.launch { localEngine.stop() }

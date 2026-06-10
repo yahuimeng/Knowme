@@ -24,11 +24,14 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -407,7 +410,7 @@ private fun AiList(
                 modifier = Modifier.size(20.dp),
             )
             Text(
-                "已连接 · ${active.name.ifBlank { active.backend.label }} · ${active.model}",
+                "已连接 · ${active.backend.label} · ${active.model}",
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium,
             )
@@ -427,9 +430,9 @@ private fun AiList(
         ) {
             RadioButton(selected = p.id == (activeId ?: profiles.firstOrNull()?.id), onClick = { onSelect(p.id) })
             Column(Modifier.weight(1f).padding(start = 4.dp)) {
-                Text(p.name.ifBlank { "未命名" }, style = MaterialTheme.typography.bodyLarge)
+                Text(p.model.ifBlank { p.backend.label }, style = MaterialTheme.typography.bodyLarge)
                 Text(
-                    "${p.backend.label} · ${p.model}",
+                    p.backend.label,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.outline,
                 )
@@ -456,7 +459,6 @@ private fun AiEditor(
     onCancel: () -> Unit,
     onDeleted: () -> Unit,
 ) {
-    var name by remember(profile) { mutableStateOf(profile.name) }
     var backend by remember(profile) { mutableStateOf(profile.backend) }
     var baseUrl by remember(profile) { mutableStateOf(profile.baseUrl) }
     var apiKey by remember(profile) { mutableStateOf(profile.apiKey) }
@@ -464,21 +466,27 @@ private fun AiEditor(
     var keyVisible by remember { mutableStateOf(false) }
     var testResult by remember(profile) { mutableStateOf<String?>(null) }
 
+    // 名称自动用模型名（无需用户填）
     fun build() = profile.copy(
-        name = name.trim().ifBlank { backend.label },
+        name = model.trim().ifBlank { backend.label },
         backend = backend,
         baseUrl = baseUrl.trim(),
         apiKey = apiKey.trim(),
         model = model.trim(),
     )
 
-    Text(if (isNew) "新增服务" else "编辑服务", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-
-    OutlinedTextField(
-        value = name, onValueChange = { name = it },
-        label = { Text("名称（如：我的Claude / 公司豆包）") },
-        modifier = Modifier.fillMaxWidth(), singleLine = true,
-    )
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(if (isNew) "新增服务" else "编辑服务", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+        if (!isNew) {
+            IconButton(onClick = onDeleted) {
+                Icon(Icons.Filled.Delete, contentDescription = "删除此服务", tint = MaterialTheme.colorScheme.error)
+            }
+        }
+    }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         AiBackend.entries.forEach { b ->
             FilterChip(
@@ -529,13 +537,6 @@ private fun AiEditor(
     }
     testResult?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
 
-    if (!isNew) {
-        TextButton(onClick = onDeleted) {
-            Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-            Text("  删除这个服务", color = MaterialTheme.colorScheme.error)
-        }
-    }
-
     Text(
         if (backend == AiBackend.LOCAL) "📴 本地模型完全离线运行，不联网、不花 token。"
         else "🔑 key 用 Android Keystore 加密存在本机，绝不上传。",
@@ -549,6 +550,7 @@ private fun AiEditor(
 private fun LocalModelConfig(vm: MainViewModel, selected: String, onSelect: (String) -> Unit) {
     val models by vm.localModels.collectAsState()
     val progress by vm.importProgress.collectAsState()
+    val loaded by vm.localModelLoaded.collectAsState()
     var msg by remember { mutableStateOf<String?>(null) }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -611,20 +613,35 @@ private fun LocalModelConfig(vm: MainViewModel, selected: String, onSelect: (Str
 
         HorizontalDivider()
 
-        // ③ 运行控制（次要）+ 获取指引
+        // ③ 运行控制：播放/停止（像音乐播放器）
         if (models.isNotEmpty()) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("模型常驻内存以加快生成", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
-                TextButton(onClick = { vm.stopLocalModel() }) { Text("停止释放") }
+                Text(
+                    if (loaded) "运行中 · 已常驻内存" else "未启动",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (loaded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                )
+                FilledIconButton(
+                    onClick = {
+                        if (loaded) vm.stopLocalModel()
+                        else if (selected.isNotBlank()) vm.startLocalModel(selected)
+                    },
+                    enabled = loaded || selected.isNotBlank(),
+                ) {
+                    Icon(
+                        if (loaded) Icons.Filled.Stop else Icons.Filled.PlayArrow,
+                        contentDescription = if (loaded) "停止" else "启动",
+                    )
+                }
             }
         }
         Text(
-            "获取模型：手机浏览器去 hf-mirror.com 搜 “Qwen2.5 GGUF”，下 3B 的 Q4_K_M（约2GB，中文好）；" +
-                "低配机用 1.5B。下完点上面「导入」选它。需 ~3GB 空闲内存。",
+            "获取模型：用手机浏览器到 HuggingFace 或镜像站(hf-mirror.com)下载 .gguf 模型，按手机内存选大小" +
+                "（越大越准、越慢），下完点上面「导入」选它。实际效果以所选模型的能力为准。",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.outline,
         )
