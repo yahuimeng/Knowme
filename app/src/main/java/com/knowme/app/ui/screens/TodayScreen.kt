@@ -1,6 +1,5 @@
 package com.knowme.app.ui.screens
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -8,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,7 +16,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,11 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
@@ -108,19 +106,14 @@ fun TodayScreen(vm: MainViewModel) {
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
             ) {
                 Column(Modifier.padding(16.dp)) {
-                    // 概览：左三档数字 + 右环形图
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            StatRow(priorityColor(Priority.HIGH), high.size, "需处理")
-                            StatRow(priorityColor(Priority.MID), mid.size, "知道就行")
-                            StatRow(priorityColor(Priority.LOW), low.size, "已折叠")
-                        }
-                        PriorityDonut(high.size, mid.size, low.size)
+                    // 概览：三档大数字 + 占比条
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        StatCol(high.size, "需处理", priorityColor(Priority.HIGH))
+                        StatCol(mid.size, "知道就行", priorityColor(Priority.MID))
+                        StatCol(low.size, "噪音", priorityColor(Priority.LOW))
                     }
+                    Spacer(Modifier.height(12.dp))
+                    StackedBar(high.size, mid.size, low.size)
                     Spacer(Modifier.height(14.dp))
                     HorizontalDivider()
                     Spacer(Modifier.height(14.dp))
@@ -149,7 +142,7 @@ fun TodayScreen(vm: MainViewModel) {
                             Text("  正在消化…", style = MaterialTheme.typography.bodyMedium)
                         }
                     } else {
-                        Button(
+                        FilledTonalButton(
                             enabled = todays.isNotEmpty(),
                             onClick = {
                                 if (activeConfig?.isConfigured != true) {
@@ -252,56 +245,33 @@ private fun PermissionCard(onGrant: () -> Unit) {
                 style = MaterialTheme.typography.bodyMedium,
             )
             Spacer(Modifier.height(12.dp))
-            Button(onClick = onGrant) { Text("去授权") }
+            FilledTonalButton(onClick = onGrant) { Text("去授权") }
         }
     }
 }
 
-/** 概览的一行统计：彩点 + 大数字 + 标签。 */
+/** 概览的一档：大数字（用优先级色）+ 标签。 */
 @Composable
-private fun StatRow(color: Color, count: Int, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(10.dp).clip(CircleShape).background(color))
-        Spacer(Modifier.size(8.dp))
-        Text("$count", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.size(6.dp))
-        Text(
-            label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+private fun StatCol(count: Int, label: String, color: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("$count", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = color)
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
-/** 三档占比环形图，中心显示总数。 */
+/** 三档占比条：一条圆角横条按比例分成三段颜色（空时为灰轨）。 */
 @Composable
-private fun PriorityDonut(high: Int, mid: Int, low: Int) {
+private fun StackedBar(high: Int, mid: Int, low: Int) {
     val total = high + mid + low
-    val cHigh = priorityColor(Priority.HIGH)
-    val cMid = priorityColor(Priority.MID)
-    val cLow = priorityColor(Priority.LOW)
-    val track = MaterialTheme.colorScheme.surfaceVariant
-    Box(Modifier.size(92.dp), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxSize()) {
-            val sw = 12.dp.toPx()
-            val d = size.minDimension - sw
-            val tl = Offset((size.width - d) / 2f, (size.height - d) / 2f)
-            val sz = Size(d, d)
-            drawArc(track, 0f, 360f, false, tl, sz, style = Stroke(sw, cap = StrokeCap.Round))
-            if (total > 0) {
-                var start = -90f
-                listOf(high to cHigh, mid to cMid, low to cLow).forEach { (v, c) ->
-                    if (v > 0) {
-                        val sweep = 360f * v / total
-                        drawArc(c, start, sweep, false, tl, sz, style = Stroke(sw, cap = StrokeCap.Butt))
-                        start += sweep
-                    }
-                }
-            }
-        }
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("$total", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text("条", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Row(
+        Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)),
+    ) {
+        if (total == 0) {
+            Box(Modifier.weight(1f).fillMaxHeight().background(MaterialTheme.colorScheme.surfaceVariant))
+        } else {
+            if (high > 0) Box(Modifier.weight(high.toFloat()).fillMaxHeight().background(priorityColor(Priority.HIGH)))
+            if (mid > 0) Box(Modifier.weight(mid.toFloat()).fillMaxHeight().background(priorityColor(Priority.MID)))
+            if (low > 0) Box(Modifier.weight(low.toFloat()).fillMaxHeight().background(priorityColor(Priority.LOW)))
         }
     }
 }

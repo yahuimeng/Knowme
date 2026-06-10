@@ -30,8 +30,10 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -112,7 +114,7 @@ fun SettingsScreen(vm: MainViewModel) {
                     activeId = activeId,
                     onSelect = { vm.setActive(it) },
                     onEdit = { editing = it },
-                    onAdd = { editing = AiProfile(id = UUID.randomUUID().toString(), name = "") },
+                    onAdd = { editing = AiProfile(id = UUID.randomUUID().toString(), name = "", baseUrl = "", model = "") },
                 )
             } else {
                 AiEditor(
@@ -466,13 +468,13 @@ private fun AiEditor(
     var keyVisible by remember { mutableStateOf(false) }
     var testResult by remember(profile) { mutableStateOf<String?>(null) }
 
-    // 名称自动用模型名（无需用户填）
+    // 名称自动用模型名；地址/模型留空时回退到该后端的默认值
     fun build() = profile.copy(
         name = model.trim().ifBlank { backend.label },
         backend = backend,
-        baseUrl = baseUrl.trim(),
+        baseUrl = baseUrl.trim().ifBlank { backend.defaultBaseUrl },
         apiKey = apiKey.trim(),
-        model = model.trim(),
+        model = model.trim().ifBlank { backend.defaultModel },
     )
 
     Row(
@@ -491,7 +493,8 @@ private fun AiEditor(
         AiBackend.entries.forEach { b ->
             FilterChip(
                 selected = backend == b,
-                onClick = { backend = b; baseUrl = b.defaultBaseUrl; model = b.defaultModel },
+                // 切后端时清空输入，让默认值以"提示"形式展示
+                onClick = { backend = b; baseUrl = ""; model = "" },
                 label = { Text(b.label) },
             )
         }
@@ -499,13 +502,18 @@ private fun AiEditor(
     if (backend == AiBackend.LOCAL) {
         LocalModelConfig(vm = vm, selected = model, onSelect = { model = it })
     } else {
+        val fieldShape = RoundedCornerShape(12.dp)
         OutlinedTextField(
             value = baseUrl, onValueChange = { baseUrl = it },
-            label = { Text("接口地址") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+            label = { Text("接口地址") },
+            placeholder = { Text(backend.defaultBaseUrl, maxLines = 1, style = MaterialTheme.typography.bodyMedium) },
+            shape = fieldShape, modifier = Modifier.fillMaxWidth(), singleLine = true,
         )
         OutlinedTextField(
             value = apiKey, onValueChange = { apiKey = it },
-            label = { Text("API Key") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+            label = { Text("API Key") },
+            placeholder = { Text("粘贴你自己的 key", style = MaterialTheme.typography.bodyMedium) },
+            shape = fieldShape, modifier = Modifier.fillMaxWidth(), singleLine = true,
             visualTransformation = if (keyVisible) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
                 IconButton(onClick = { keyVisible = !keyVisible }) {
@@ -518,12 +526,14 @@ private fun AiEditor(
         )
         OutlinedTextField(
             value = model, onValueChange = { model = it },
-            label = { Text("模型") }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+            label = { Text("模型") },
+            placeholder = { Text(backend.defaultModel, style = MaterialTheme.typography.bodyMedium) },
+            shape = fieldShape, modifier = Modifier.fillMaxWidth(), singleLine = true,
         )
     }
 
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Button(onClick = { vm.saveProfile(build()); onSaved() }) { Text("保存") }
+        FilledTonalButton(onClick = { vm.saveProfile(build()); onSaved() }) { Text("保存") }
         OutlinedButton(onClick = {
             testResult = "测试中…"
             vm.testConnection(build().toConfig()) { outcome ->
@@ -601,7 +611,7 @@ private fun LocalModelConfig(vm: MainViewModel, selected: String, onSelect: (Str
                 Text("导入中…", style = MaterialTheme.typography.bodyMedium)
             }
         } else {
-            Button(
+            FilledTonalButton(
                 onClick = { msg = null; picker.launch(arrayOf("*/*")) },
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -625,7 +635,7 @@ private fun LocalModelConfig(vm: MainViewModel, selected: String, onSelect: (Str
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (loaded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                FilledIconButton(
+                FilledTonalIconButton(
                     onClick = {
                         if (loaded) vm.stopLocalModel()
                         else if (selected.isNotBlank()) vm.startLocalModel(selected)

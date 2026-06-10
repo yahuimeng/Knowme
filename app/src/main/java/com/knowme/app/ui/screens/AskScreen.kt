@@ -24,9 +24,11 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -117,7 +119,7 @@ fun AskScreen(vm: MainViewModel) {
                 Spacer(Modifier.height(8.dp))
                 Text("开始一段对话", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(12.dp))
-                Button(onClick = { showNewMode = true }) { Text("新对话") }
+                FilledTonalButton(onClick = { showNewMode = true }) { Text("新对话") }
             }
         } else {
             LazyColumn(
@@ -141,7 +143,7 @@ fun AskScreen(vm: MainViewModel) {
                     shape = RoundedCornerShape(24.dp),
                     maxLines = 4,
                 )
-                FilledIconButton(
+                FilledTonalIconButton(
                     onClick = { vm.sendChat(input); input = "" },
                     enabled = input.isNotBlank() && !sending,
                     modifier = Modifier.size(52.dp),
@@ -194,7 +196,7 @@ fun AskScreen(vm: MainViewModel) {
             title = { Text("新对话") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(
+                    FilledTonalButton(
                         onClick = { vm.newConversation("CHAT"); showNewMode = false },
                         modifier = Modifier.fillMaxWidth(),
                     ) { Text("💬 自由聊天") }

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -40,7 +41,7 @@ fun TimelineScreen(vm: MainViewModel) {
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item {
             Spacer(Modifier.height(12.dp))
@@ -95,40 +96,44 @@ private fun AppGroupItem(group: List<NotificationEntity>) {
     val multi = group.size > 1
     var expanded by remember(latest.id) { mutableStateOf(false) }
 
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clickable(enabled = multi) { expanded = !expanded }
-            .padding(vertical = 6.dp),
-    ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(
-                "${formatClock(latest.postedAt)}  ${latest.appName}",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-            )
-            if (multi) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(
+            Modifier.fillMaxWidth().clickable(enabled = multi) { expanded = !expanded }.padding(14.dp),
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(
-                    "${group.size}条 ${if (expanded) "▴" else "▾"}",
+                    "${formatClock(latest.postedAt)}  ${latest.appName}",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium,
                 )
+                if (multi) {
+                    Text(
+                        "${group.size}条 ${if (expanded) "▴" else "▾"}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
-        }
-        if (!expanded) {
-            val line = snippet(latest)
-            if (line.isNotEmpty()) {
-                Text(
-                    line,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = if (multi) 1 else 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        } else {
-            group.forEach { n ->
-                Column(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+            if (!expanded) {
+                val line = snippet(latest)
+                if (line.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        line,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = if (multi) 1 else 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            } else {
+                group.forEachIndexed { i, n ->
+                    if (i == 0) Spacer(Modifier.height(10.dp))
+                    else HorizontalDivider(Modifier.padding(vertical = 10.dp))
                     Text(
                         formatClock(n.postedAt),
                         style = MaterialTheme.typography.bodySmall,
@@ -136,16 +141,12 @@ private fun AppGroupItem(group: List<NotificationEntity>) {
                     )
                     val line = snippet(n)
                     if (line.isNotEmpty()) {
-                        Text(
-                            line,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(line, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
         }
-        HorizontalDivider(Modifier.padding(top = 6.dp))
     }
 }
 
