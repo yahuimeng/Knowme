@@ -36,7 +36,10 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
     private val digestDao = container.db.digestDao()
     private val conversationDao = container.db.conversationDao()
     private val messageDao = container.db.messageDao()
-    private val today = DigestGenerator.dayRange()
+
+    // 当天 0 点的时间戳；进「今日」页时刷新，避免跨天/进程长存导致一直读昨天
+    private val _dayStart = MutableStateFlow(DigestGenerator.dayRange().first)
+    fun refreshToday() { _dayStart.value = DigestGenerator.dayRange().first }
 
     val notifications: StateFlow<List<NotificationEntity>> =
         notificationDao.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -44,14 +47,16 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
     val notificationCount: StateFlow<Int> =
         notificationDao.observeCount().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    /** 今日通知（用于「今日」页三档分组）。 */
+    /** 今日通知（用于「今日」页三档分组）。随 _dayStart 刷新。 */
+    @OptIn(ExperimentalCoroutinesApi::class)
     val todayNotifications: StateFlow<List<NotificationEntity>> =
-        notificationDao.observeDay(today.first, today.second)
+        _dayStart.flatMapLatest { s -> notificationDao.observeDay(s, s + 24L * 3600 * 1000 - 1) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /** 今日早报（AI 消化后的叙事）。 */
+    /** 今日早报（AI 消化后的叙事）。随 _dayStart 刷新。 */
+    @OptIn(ExperimentalCoroutinesApi::class)
     val todayDigest: StateFlow<DigestEntity?> =
-        digestDao.observe(DigestGenerator.dateKey())
+        _dayStart.flatMapLatest { s -> digestDao.observe(DigestGenerator.dateKey(s)) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     private val _digestRunning = MutableStateFlow(false)
@@ -120,8 +125,9 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
     val tokenTotals: StateFlow<TokenTotals> =
         container.db.tokenUsageDao().observeTotals()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TokenTotals(0, 0, 0))
+    @OptIn(ExperimentalCoroutinesApi::class)
     val tokenTotalsToday: StateFlow<TokenTotals> =
-        container.db.tokenUsageDao().observeTotalsSince(today.first)
+        _dayStart.flatMapLatest { s -> container.db.tokenUsageDao().observeTotalsSince(s) }
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), TokenTotals(0, 0, 0))
     val dailyTokens: StateFlow<List<DailyTokens>> =
         container.db.tokenUsageDao().observeDaily(System.currentTimeMillis() - 7L * 24 * 3600 * 1000)

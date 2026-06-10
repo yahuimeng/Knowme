@@ -61,6 +61,7 @@ fun TodayScreen(vm: MainViewModel) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 granted = NotificationAccess.isGranted(context)
+                vm.refreshToday()             // 刷新"今天"范围，避免读到昨天
                 vm.maybeAutoGenerateOnOpen()  // 「打开App自动」模式按节流静默生成
             }
         }
