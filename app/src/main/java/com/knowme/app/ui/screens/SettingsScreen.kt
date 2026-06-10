@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -61,6 +62,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.knowme.app.ai.AiBackend
 import com.knowme.app.ai.AiOutcome
@@ -322,13 +324,16 @@ private fun CollapsibleCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (!expanded && summary != null) {
                         Text(
                             summary,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = 150.dp),
                         )
                     }
                     Text(
@@ -399,25 +404,7 @@ private fun AiList(
     onAdd: () -> Unit,
 ) {
     val active = profiles.firstOrNull { it.id == activeId } ?: profiles.firstOrNull()
-    if (active != null && active.isConfigured) {
-        Row(
-            Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Icon(
-                Icons.Filled.CheckCircle,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp),
-            )
-            Text(
-                "已连接 · ${active.backend.label} · ${active.model}",
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
-            )
-        }
-    } else {
+    if (active == null || !active.isConfigured) {
         Text(
             "还没有可用的 AI 服务，添加一个就能开始消化通知。",
             style = MaterialTheme.typography.bodyMedium,
@@ -426,21 +413,31 @@ private fun AiList(
     }
 
     profiles.forEach { p ->
+        val selected = p.id == (activeId ?: profiles.firstOrNull()?.id)
         Row(
             Modifier.fillMaxWidth().clickable { onSelect(p.id) },
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            RadioButton(selected = p.id == (activeId ?: profiles.firstOrNull()?.id), onClick = { onSelect(p.id) })
-            Column(Modifier.weight(1f).padding(start = 4.dp)) {
-                Text(p.model.ifBlank { p.backend.label }, style = MaterialTheme.typography.bodyLarge)
-                Text(
-                    p.backend.label,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+            RadioButton(selected = selected, onClick = { onSelect(p.id) })
+            Text(
+                p.model.ifBlank { p.backend.label },
+                modifier = Modifier.weight(1f).padding(start = 4.dp),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (selected) {
+                Icon(
+                    Icons.Filled.CheckCircle,
+                    contentDescription = "使用中",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp),
                 )
+                Spacer(Modifier.size(4.dp))
             }
             IconButton(onClick = { onEdit(p) }) {
-                Icon(Icons.Filled.Edit, contentDescription = "编辑")
+                Icon(Icons.Filled.Edit, contentDescription = "编辑", modifier = Modifier.size(20.dp))
             }
         }
     }
