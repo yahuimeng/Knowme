@@ -19,6 +19,8 @@ android {
         externalNativeBuild {
             cmake {
                 arguments += "-DCMAKE_BUILD_TYPE=Release"
+                // 链接时 strip 调试符号：libllama-common 等否则高达几十MB
+                arguments += "-DCMAKE_SHARED_LINKER_FLAGS=-Wl,--strip-all"
                 arguments += "-DBUILD_SHARED_LIBS=ON"
                 arguments += "-DLLAMA_BUILD_APP=OFF"
                 arguments += "-DLLAMA_BUILD_COMMON=ON"
