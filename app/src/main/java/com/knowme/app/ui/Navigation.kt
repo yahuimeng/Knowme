@@ -1,5 +1,6 @@
 package com.knowme.app.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -50,7 +51,7 @@ fun KnowmeRoot(vm: MainViewModel) {
     val navController = rememberNavController()
     val hazeState = rememberHazeState()
 
-    Box(Modifier.fillMaxSize()) {
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         // 内容铺满（含底栏下方），作为模糊源；顶部留状态栏
         NavHost(
             navController = navController,
