@@ -8,7 +8,8 @@ import com.knowme.app.ai.AiConfig
 import com.knowme.app.ai.AiOutcome
 import com.knowme.app.ai.AiProfile
 import com.knowme.app.data.db.AppNotifCount
-import com.knowme.app.data.db.AskMessageEntity
+import com.knowme.app.data.db.ChatMessageEntity
+import com.knowme.app.data.db.ConversationEntity
 import com.knowme.app.data.db.DailyTokens
 import com.knowme.app.data.db.DigestEntity
 import com.knowme.app.data.db.NotificationEntity
@@ -17,11 +18,14 @@ import com.knowme.app.data.db.TokenTotals
 import com.knowme.app.digest.DigestAutoMode
 import com.knowme.app.digest.DigestGenerator
 import com.knowme.app.digest.DigestResult
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -30,7 +34,8 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
     private val notificationDao = container.db.notificationDao()
     private val todoDao = container.db.todoDao()
     private val digestDao = container.db.digestDao()
-    private val askDao = container.db.askDao()
+    private val conversationDao = container.db.conversationDao()
+    private val messageDao = container.db.messageDao()
     private val today = DigestGenerator.dayRange()
 
     val notifications: StateFlow<List<NotificationEntity>> =
@@ -151,39 +156,50 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope.launch { container.clearAllData(); onDone() }
     }
 
-    // ── 问问（带历史）──
-    val askHistory: StateFlow<List<AskMessageEntity>> =
-        askDao.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    // ── 问问：多对话 + 多轮聊天 ──
+    val conversations: StateFlow<List<ConversationEntity>> =
+        conversationDao.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private val _asking = MutableStateFlow(false)
-    val asking: StateFlow<Boolean> = _asking.asStateFlow()
+    private val _currentConvId = MutableStateFlow<Long?>(null)
+    val currentConvId: StateFlow<Long?> = _currentConvId.asStateFlow()
 
-    fun ask(question: String) {
-        val q = question.trim()
-        if (q.isEmpty() || _asking.value) return
-        _asking.value = true
+    val currentConversation: StateFlow<ConversationEntity?> =
+        combine(conversations, _currentConvId) { list, id -> list.firstOrNull { it.id == id } }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val currentMessages: StateFlow<List<ChatMessageEntity>> =
+        _currentConvId.flatMapLatest { id ->
+            if (id == null) flowOf(emptyList()) else messageDao.observeByConversation(id)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _sending = MutableStateFlow(false)
+    val sending: StateFlow<Boolean> = _sending.asStateFlow()
+
+    fun selectConversation(id: Long) { _currentConvId.value = id }
+
+    /** 新建对话并切换过去。mode: "CHAT" / "NOTIFICATION"。 */
+    fun newConversation(mode: String) {
+        viewModelScope.launch { _currentConvId.value = container.newConversation(mode) }
+    }
+
+    fun deleteConversation(id: Long) {
         viewModelScope.launch {
-            val createdAt = System.currentTimeMillis()
-            // 立即写入问题（答案先空），UI 马上显示我的提问
-            val id = askDao.insert(AskMessageEntity(question = q, answer = "", isError = false, createdAt = createdAt))
-
-            val recent = notificationDao.since(createdAt - 7L * 24 * 3600 * 1000)
-                .take(80)
-                .joinToString("\n") { "[${it.appName}] ${it.title} ${it.text}" }
-            val system = "你是用户的私人通知助理。只依据下面提供的通知记录回答，不要编造。回答简洁。"
-            val user = "通知记录：\n$recent\n\n问题：$q"
-            val (answer, isError) = when (val r = container.chat(system, user, "ask")) {
-                is AiOutcome.Ok -> r.text to false
-                is AiOutcome.Error -> r.message to true
+            container.deleteConversation(id)
+            if (_currentConvId.value == id) {
+                _currentConvId.value = conversations.value.firstOrNull { it.id != id }?.id
             }
-            // 回填答案
-            askDao.update(AskMessageEntity(id = id, question = q, answer = answer, isError = isError, createdAt = createdAt))
-            _asking.value = false
         }
     }
 
-    fun clearAskHistory() {
-        viewModelScope.launch { askDao.clear() }
+    fun sendChat(text: String) {
+        val id = _currentConvId.value ?: return
+        if (_sending.value || text.isBlank()) return
+        _sending.value = true
+        viewModelScope.launch {
+            container.sendChat(id, text)
+            _sending.value = false
+        }
     }
 
     class Factory(private val container: AppContainer) : ViewModelProvider.Factory {

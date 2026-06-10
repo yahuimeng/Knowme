@@ -10,6 +10,8 @@ import com.knowme.app.ai.LocalLlmEngine
 import com.knowme.app.ai.LocalModelManager
 import com.knowme.app.ai.SecureConfigStore
 import com.knowme.app.data.db.AppDatabase
+import com.knowme.app.data.db.ChatMessageEntity
+import com.knowme.app.data.db.ConversationEntity
 import com.knowme.app.digest.DigestAutoMode
 import com.knowme.app.digest.DigestGenerator
 import com.knowme.app.digest.DigestResult
@@ -160,6 +162,65 @@ class AppContainer(context: Context) {
         return generateDigest()
     }
 
+    // ── 问问：多对话 + 多轮聊天 ──
+    /** 新建对话，返回 id。mode: "CHAT" 自由聊天 / "NOTIFICATION" 问通知。 */
+    suspend fun newConversation(mode: String): Long {
+        val now = System.currentTimeMillis()
+        return db.conversationDao().insert(
+            ConversationEntity(title = DEFAULT_CONVO_TITLE, mode = mode, createdAt = now, updatedAt = now)
+        )
+    }
+
+    suspend fun deleteConversation(id: Long) {
+        db.messageDao().deleteByConversation(id)
+        db.conversationDao().delete(id)
+    }
+
+    /** 发一条消息：立即落库(答案先空)→ 按模式+历史调 AI → 回填答案。 */
+    suspend fun sendChat(conversationId: Long, text: String) {
+        val q = text.trim()
+        if (q.isEmpty()) return
+        val convo = db.conversationDao().get(conversationId) ?: return
+        val now = System.currentTimeMillis()
+        db.messageDao().insert(ChatMessageEntity(conversationId = conversationId, role = "user", content = q, createdAt = now))
+        // 首条消息用作标题
+        if (convo.title.isBlank() || convo.title == DEFAULT_CONVO_TITLE) {
+            db.conversationDao().rename(conversationId, q.take(16), now)
+        } else {
+            db.conversationDao().touch(conversationId, now)
+        }
+        // 占位的助手消息（UI 立即显示"思考中"）
+        val pendingId = db.messageDao().insert(
+            ChatMessageEntity(conversationId = conversationId, role = "assistant", content = "", createdAt = now + 1)
+        )
+        val history = db.messageDao().listByConversation(conversationId).filter { it.id != pendingId }
+        val (system, userPrompt) = buildChatPrompt(convo.mode, history)
+        val kind = if (convo.mode == "NOTIFICATION") "ask" else "chat"
+        val (answer, isError) = when (val r = chat(system, userPrompt, kind)) {
+            is AiOutcome.Ok -> r.text to false
+            is AiOutcome.Error -> r.message to true
+        }
+        db.messageDao().update(
+            ChatMessageEntity(id = pendingId, conversationId = conversationId, role = "assistant", content = answer, isError = isError, createdAt = now + 1)
+        )
+    }
+
+    private suspend fun buildChatPrompt(mode: String, history: List<ChatMessageEntity>): Pair<String, String> {
+        val convo = history.joinToString("\n") { (if (it.role == "user") "用户" else "助手") + "：" + it.content }
+        return if (mode == "NOTIFICATION") {
+            val since = System.currentTimeMillis() - 7L * 24 * 3600 * 1000
+            val recent = db.notificationDao().since(since).take(80)
+                .joinToString("\n") { "[${it.appName}] ${it.title} ${it.text}" }
+            val system = "你是用户的私人通知助理。只依据下面提供的通知记录回答用户的问题，不要编造；通知里没有的就说不知道。回答简洁。"
+            val user = "通知记录：\n$recent\n\n以下是对话，请接着回答最后一个用户问题：\n$convo"
+            system to user
+        } else {
+            val system = "你是有帮助的 AI 助手，用中文清晰、简洁地回答。"
+            val user = if (history.size <= 1) (history.lastOrNull()?.content ?: "") else "以下是对话，请接着回答最后一个用户问题：\n$convo"
+            system to user
+        }
+    }
+
     // ── 自动消化（早报生成方式）──
     var digestMode: DigestAutoMode
         get() = runCatching {
@@ -244,6 +305,8 @@ class AppContainer(context: Context) {
         db.digestDao().clear()
         db.askDao().clear()
         db.tokenUsageDao().clear()
+        db.conversationDao().clear()
+        db.messageDao().clear()
     }
 
     private companion object {
@@ -254,5 +317,6 @@ class AppContainer(context: Context) {
         const val KEY_DIGEST_INTERVAL = "digest_interval_min"
         const val KEY_LAST_DIGEST_AT = "last_digest_at"
         const val DEFAULT_RETENTION_DAYS = 7
+        const val DEFAULT_CONVO_TITLE = "新对话"
     }
 }

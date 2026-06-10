@@ -54,12 +54,33 @@ data class TokenUsageEntity(
     val outputTokens: Int,
 )
 
-/** 「问问」的一问一答历史记录。 */
+/** 「问问」的一问一答历史记录（旧版，保留兼容）。 */
 @Entity(tableName = "asks", indices = [Index("createdAt")])
 data class AskMessageEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val question: String,
     val answer: String,
+    val isError: Boolean = false,
+    val createdAt: Long,
+)
+
+/** 一个对话会话。mode：CHAT=自由聊天，NOTIFICATION=问通知（答案只依据本地通知）。 */
+@Entity(tableName = "conversations", indices = [Index("updatedAt")])
+data class ConversationEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val title: String,
+    val mode: String,        // "CHAT" / "NOTIFICATION"
+    val createdAt: Long,
+    val updatedAt: Long,
+)
+
+/** 对话里的一条消息。role：user / assistant。 */
+@Entity(tableName = "messages", indices = [Index("conversationId"), Index("createdAt")])
+data class ChatMessageEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val conversationId: Long,
+    val role: String,        // "user" / "assistant"
+    val content: String,
     val isError: Boolean = false,
     val createdAt: Long,
 )

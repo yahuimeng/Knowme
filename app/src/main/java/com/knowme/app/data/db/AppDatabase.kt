@@ -12,8 +12,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
     entities = [
         NotificationEntity::class, TodoEntity::class, DigestEntity::class,
         AskMessageEntity::class, TokenUsageEntity::class,
+        ConversationEntity::class, ChatMessageEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -23,6 +24,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun digestDao(): DigestDao
     abstract fun askDao(): AskDao
     abstract fun tokenUsageDao(): TokenUsageDao
+    abstract fun conversationDao(): ConversationDao
+    abstract fun messageDao(): MessageDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -58,13 +61,39 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v3→v4：新增 conversations / messages 表（多对话+多轮聊天）。 */
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `conversations` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`title` TEXT NOT NULL, " +
+                        "`mode` TEXT NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL, " +
+                        "`updatedAt` INTEGER NOT NULL)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_conversations_updatedAt` ON `conversations` (`updatedAt`)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `messages` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`conversationId` INTEGER NOT NULL, " +
+                        "`role` TEXT NOT NULL, " +
+                        "`content` TEXT NOT NULL, " +
+                        "`isError` INTEGER NOT NULL, " +
+                        "`createdAt` INTEGER NOT NULL)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_messages_conversationId` ON `messages` (`conversationId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_messages_createdAt` ON `messages` (`createdAt`)")
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "knowme.db",
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build().also { instance = it }
             }
     }
 }

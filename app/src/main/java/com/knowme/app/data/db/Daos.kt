@@ -153,6 +153,51 @@ interface AskDao {
 }
 
 @Dao
+interface ConversationDao {
+    @Insert
+    suspend fun insert(c: ConversationEntity): Long
+
+    @Query("SELECT * FROM conversations ORDER BY updatedAt DESC")
+    fun observeAll(): Flow<List<ConversationEntity>>
+
+    @Query("SELECT * FROM conversations WHERE id = :id")
+    suspend fun get(id: Long): ConversationEntity?
+
+    @Query("UPDATE conversations SET title = :title, updatedAt = :t WHERE id = :id")
+    suspend fun rename(id: Long, title: String, t: Long)
+
+    @Query("UPDATE conversations SET updatedAt = :t WHERE id = :id")
+    suspend fun touch(id: Long, t: Long)
+
+    @Query("DELETE FROM conversations WHERE id = :id")
+    suspend fun delete(id: Long)
+
+    @Query("DELETE FROM conversations")
+    suspend fun clear()
+}
+
+@Dao
+interface MessageDao {
+    @Insert
+    suspend fun insert(m: ChatMessageEntity): Long
+
+    @Update
+    suspend fun update(m: ChatMessageEntity)
+
+    @Query("SELECT * FROM messages WHERE conversationId = :cid ORDER BY createdAt ASC")
+    fun observeByConversation(cid: Long): Flow<List<ChatMessageEntity>>
+
+    @Query("SELECT * FROM messages WHERE conversationId = :cid ORDER BY createdAt ASC")
+    suspend fun listByConversation(cid: Long): List<ChatMessageEntity>
+
+    @Query("DELETE FROM messages WHERE conversationId = :cid")
+    suspend fun deleteByConversation(cid: Long)
+
+    @Query("DELETE FROM messages")
+    suspend fun clear()
+}
+
+@Dao
 interface DigestDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(digest: DigestEntity)
