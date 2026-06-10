@@ -78,6 +78,7 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
     fun importModel(uri: android.net.Uri, onDone: (Result<String>) -> Unit) =
         container.importModel(uri, onDone)
     fun deleteModel(name: String) = container.deleteModel(name)
+    fun stopLocalModel() = container.stopLocalModel()
 
     fun testConnection(config: AiConfig, onResult: (AiOutcome) -> Unit) {
         viewModelScope.launch { onResult(container.testConnection(config)) }

@@ -191,7 +191,8 @@ internal class InferenceEngineImpl private constructor(
     override suspend fun setSystemPrompt(prompt: String) =
         withContext(llamaDispatcher) {
             require(prompt.isNotBlank()) { "Cannot process empty system prompt!" }
-            check(_readyForSystemPrompt) { "System prompt must be set ** RIGHT AFTER ** model loaded!" }
+            // 原限制：system 只能在刚加载后设一次。但 native processSystemPrompt 开头会
+            // reset_long_term/short_term_states 清空上下文，故模型常驻时可重复调用以"复位重开"。
             check(_state.value is InferenceEngine.State.ModelReady) {
                 "Cannot process system prompt in ${_state.value.javaClass.simpleName}!"
             }

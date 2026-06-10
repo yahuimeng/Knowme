@@ -127,6 +127,11 @@ class AppContainer(context: Context) {
         _localModels.value = modelManager.listModels()
     }
 
+    /** 手动停止常驻的本地模型，释放内存。 */
+    fun stopLocalModel() {
+        scope.launch { localEngine.stop() }
+    }
+
     /** 生成今天的早报；成功后记录时间戳（供自动模式节流）。 */
     suspend fun generateDigest(): DigestResult {
         val result = DigestGenerator(db) { s, u -> chat(s, u, "digest") }.generateForToday()

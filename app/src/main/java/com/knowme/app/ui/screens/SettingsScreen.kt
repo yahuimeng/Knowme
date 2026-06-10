@@ -582,6 +582,14 @@ private fun LocalModelConfig(vm: MainViewModel, selected: String, onSelect: (Str
                 }
             }
         }
+        if (models.isNotEmpty()) {
+            OutlinedButton(onClick = { vm.stopLocalModel() }) { Text("停止本地模型（释放内存）") }
+            Text(
+                "模型首次加载后会常驻内存以加快后续生成；点上面可手动卸载，进程退出也会自动释放。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.outline,
+            )
+        }
 
         HorizontalDivider()
 

@@ -14,14 +14,15 @@ import java.io.File
 /**
  * 端侧推理引擎：基于内嵌的 llama.cpp（llamalib / com.arm.aichat），支持 .gguf。
  *
- * 注意底层引擎是"多轮聊天"取向：setSystemPrompt 只能在刚加载完模型后调用一次。
- * 而 Knowme 每次都是独立一问（早报/问问），故每次生成都把上下文复位到干净状态再跑，
- * 避免上一次的内容污染这一次。模型用 mmap，复位/重载很快；真正耗时的是 CPU 推理本身。
+ * 模型**常驻**：首次加载后一直留在内存，后续调用直接复用（不再反复加载）。
+ * 每次生成只重设 system（底层会清空上下文 KV cache），保证"独立一问"互不污染。
+ * 用户可在设置里「停止」以释放内存，或进程退出时随之释放。
  */
 class LocalLlmEngine(context: Context) {
 
     private val engine = AiChat.getInferenceEngine(context.applicationContext)
     private val mutex = Mutex()
+    private var loadedPath: String? = null
 
     suspend fun complete(modelPath: String, systemPrompt: String, userPrompt: String): AiOutcome =
         withContext(Dispatchers.Default) {
@@ -29,26 +30,39 @@ class LocalLlmEngine(context: Context) {
                 try {
                     if (!File(modelPath).exists()) error("模型文件不存在：$modelPath")
 
-                    // 1) 等 native 异步初始化完成（解决首次调用竞态）
+                    // 等 native 异步初始化完成（解决首次调用竞态）
                     engine.state.first { it !is State.Uninitialized && it !is State.Initializing }
-
-                    // 2) 复位到干净状态：已加载或出错都先清理（cleanUp 会回到 Initialized）
-                    when (engine.state.value) {
-                        is State.ModelReady, is State.Error -> engine.cleanUp()
-                        else -> {}
+                    if (engine.state.value is State.Error) {
+                        engine.cleanUp(); loadedPath = null
                     }
 
-                    // 3) 加载模型 + 设置 system（必须紧跟在 loadModel 之后）
-                    engine.loadModel(modelPath)
+                    // 常驻：仅在未加载 / 换了模型时才加载
+                    val needLoad = loadedPath != modelPath || engine.state.value !is State.ModelReady
+                    if (needLoad) {
+                        if (engine.state.value is State.ModelReady) engine.cleanUp()
+                        engine.loadModel(modelPath)
+                        loadedPath = modelPath
+                    }
+
+                    // 每次重设 system → 底层清空上下文，保证本次独立
                     if (systemPrompt.isNotBlank()) engine.setSystemPrompt(systemPrompt)
 
-                    // 4) 发用户提问，收集 token 流
                     val text = engine.sendUserPrompt(userPrompt).toList().joinToString("").trim()
                     AiOutcome.Ok(text)
                 } catch (e: Throwable) {
+                    loadedPath = null
                     runCatching { engine.cleanUp() }
                     AiOutcome.Error("本地模型运行失败：${e.message ?: e.javaClass.simpleName}")
                 }
             }
         }
+
+    /** 手动停止：卸载模型、释放内存（设置里「停止」按钮调用）。 */
+    fun stop() {
+        loadedPath = null
+        runCatching { engine.cleanUp() }
+    }
+
+    /** 当前是否有模型常驻在内存。 */
+    fun isLoaded(): Boolean = loadedPath != null && engine.state.value is State.ModelReady
 }
