@@ -151,7 +151,7 @@ fun TodayScreen(vm: MainViewModel) {
         bucket("🟡 知道就行", mid, Priority.MID, midExpanded) { midExpanded = !midExpanded }
         bucket("⚪️ 已折叠噪音", low, Priority.LOW, lowExpanded) { lowExpanded = !lowExpanded }
 
-        item { Spacer(Modifier.height(16.dp)) }
+        item { Spacer(Modifier.height(100.dp)) }  // 给磨砂底栏留出空间
     }
 }
 

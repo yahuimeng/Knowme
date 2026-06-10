@@ -129,7 +129,7 @@ fun AskScreen(vm: MainViewModel) {
                 item { Spacer(Modifier.height(4.dp)) }
             }
             Row(
-                Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 92.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {

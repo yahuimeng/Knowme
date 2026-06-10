@@ -78,4 +78,7 @@ dependencies {
 
     // 内嵌端侧推理：llama.cpp（支持 .gguf，含 Qwen 等中文模型），native 由 llamalib 编译
     implementation(project(":llamalib"))
+
+    // 背景模糊（iOS 玻璃质感）
+    implementation(libs.haze)
 }

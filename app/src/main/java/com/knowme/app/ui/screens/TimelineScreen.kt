@@ -84,7 +84,7 @@ fun TimelineScreen(vm: MainViewModel) {
                 items(byApp, key = { it.first().id }) { group -> AppGroupItem(group) }
             }
         }
-        item { Spacer(Modifier.height(16.dp)) }
+        item { Spacer(Modifier.height(100.dp)) }  // 给磨砂底栏留出空间
     }
 }
 
