@@ -263,7 +263,7 @@ fun SettingsScreen(vm: MainViewModel) {
             title = "🔒 隐私与数据",
             summary = if (retention == 0) "永久保留" else "保留 ${retention} 天",
         ) {
-            Text("· 全部数据仅存在本机，没有服务器。", style = MaterialTheme.typography.bodyMedium)
+            Text("· 全部数据仅存在本机。", style = MaterialTheme.typography.bodyMedium)
             Text("· AI 调用由你的手机直接发往你选的服务，开发者不在链路里。", style = MaterialTheme.typography.bodyMedium)
             Text("通知原文保留期", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -544,12 +544,13 @@ private fun AiEditor(
     }
     testResult?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
 
-    Text(
-        if (backend == AiBackend.LOCAL) "📴 本地模型完全离线运行，不联网、不花 token。"
-        else "🔑 key 用 Android Keystore 加密存在本机，绝不上传。",
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+    if (backend != AiBackend.LOCAL) {
+        Text(
+            "🔑 key 加密后存在本机。",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 /** 本地模型配置：选择模型 / 导入 .gguf / 运行控制 / 获取指引。 */
@@ -647,8 +648,7 @@ private fun LocalModelConfig(vm: MainViewModel, selected: String, onSelect: (Str
             }
         }
         Text(
-            "获取模型：用手机浏览器到 HuggingFace 或镜像站(hf-mirror.com)下载 .gguf 模型，按手机内存选大小" +
-                "（越大越准、越慢），下完点上面「导入」选它。实际效果以所选模型的能力为准。",
+            "获取模型：HuggingFace / ModelScope，请选择适合自己手机配置的 .gguf 模型。\n实际效果以所选模型能力为准。",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
