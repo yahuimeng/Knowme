@@ -64,7 +64,11 @@ class AppContainer(context: Context) {
     }
 
     fun deleteProfile(id: String) {
-        val list = _profiles.value.filterNot { it.id == id }
+        // 只删一条：按下标移除首个匹配，避免 id 重复时把多个一起删掉
+        val list = _profiles.value.toMutableList()
+        val idx = list.indexOfFirst { it.id == id }
+        if (idx < 0) return
+        list.removeAt(idx)
         _profiles.value = list
         secureStore.saveProfiles(list)
         if (_activeId.value == id) setActive(list.firstOrNull()?.id)

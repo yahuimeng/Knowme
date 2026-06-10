@@ -31,7 +31,20 @@ class SecureConfigStore(context: Context) {
     fun loadProfiles(): List<AiProfile> {
         val raw = prefs.getString(KEY_PROFILES, null)
         if (raw != null) {
-            return runCatching { json.decodeFromString<List<AiProfile>>(raw) }.getOrDefault(emptyList())
+            val list = runCatching { json.decodeFromString<List<AiProfile>>(raw) }.getOrDefault(emptyList())
+            // 修复历史脏数据：空 / 重复的 id 会导致按 id 删除时误删多个
+            val seen = HashSet<String>()
+            var changed = false
+            val repaired = list.map { p ->
+                if (p.id.isBlank() || !seen.add(p.id)) {
+                    changed = true
+                    val newId = java.util.UUID.randomUUID().toString()
+                    seen.add(newId)
+                    p.copy(id = newId)
+                } else p
+            }
+            if (changed) saveProfiles(repaired)
+            return repaired
         }
         // 旧版本单配置 → 迁移成一份档案
         val legacyKey = prefs.getString(LEGACY_API_KEY, "").orEmpty()
