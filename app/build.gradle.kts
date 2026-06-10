@@ -8,12 +8,12 @@ plugins {
 
 android {
     namespace = "com.knowme.app"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.knowme.app"
         minSdk = 29
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
         vectorDrawables { useSupportLibrary = true }
@@ -76,6 +76,6 @@ dependencies {
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.serialization.kotlinx.json)
 
-    // 内嵌端侧推理（MediaPipe LLM Inference / LiteRT），native 库随 AAR 预编译
-    implementation(libs.mediapipe.tasks.genai)
+    // 内嵌端侧推理：llama.cpp（支持 .gguf，含 Qwen 等中文模型），native 由 llamalib 编译
+    implementation(project(":llamalib"))
 }

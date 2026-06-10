@@ -21,3 +21,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Knowme"
 include(":app")
+include(":llamalib")

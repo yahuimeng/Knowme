@@ -555,7 +555,7 @@ private fun LocalModelConfig(vm: MainViewModel, selected: String, onSelect: (Str
         Text("选择本地模型", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
         if (models.isEmpty()) {
             Text(
-                "还没有本地模型，在下面下载一个（.task / LiteRT 格式）。",
+                "还没有本地模型，在下面下载一个（.gguf 格式，如 Qwen）。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -577,7 +577,7 @@ private fun LocalModelConfig(vm: MainViewModel, selected: String, onSelect: (Str
         Text("下载模型", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
         OutlinedTextField(
             value = dlName, onValueChange = { dlName = it },
-            label = { Text("保存文件名（如 gemma3-1b.task）") },
+            label = { Text("保存文件名（如 qwen2.5-3b-q4.gguf）") },
             modifier = Modifier.fillMaxWidth(), singleLine = true,
         )
         OutlinedTextField(
@@ -611,7 +611,7 @@ private fun LocalModelConfig(vm: MainViewModel, selected: String, onSelect: (Str
         }
         msg?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
         Text(
-            "模型通常 1~2.5GB，建议 WiFi。机型/内存不足时推理会失败。中文推荐 Qwen 类（需 LiteRT 格式）。",
+            "模型通常 1~2.5GB，建议 WiFi。机型/内存不足时推理会失败。中文推荐 Qwen2.5 3B 的 .gguf（Q4 量化）。",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.outline,
         )
