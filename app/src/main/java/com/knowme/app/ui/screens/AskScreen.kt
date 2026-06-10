@@ -103,7 +103,7 @@ fun AskScreen(vm: MainViewModel) {
             Text(
                 if (it.mode == "NOTIFICATION") "🔔 问通知 · 只依据你的本地通知作答" else "💬 自由聊天",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.outline,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
@@ -179,7 +179,7 @@ fun AskScreen(vm: MainViewModel) {
                             fontWeight = if (c.id == current?.id) FontWeight.SemiBold else FontWeight.Normal,
                         )
                         IconButton(onClick = { vm.deleteConversation(c.id) }) {
-                            Icon(Icons.Filled.Delete, contentDescription = "删除", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.outline)
+                            Icon(Icons.Filled.Delete, contentDescription = "删除", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }

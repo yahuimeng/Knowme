@@ -52,7 +52,7 @@ fun TodoScreen(vm: MainViewModel) {
                 Text(
                     "${open.size} 未完成",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.outline,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -87,9 +87,9 @@ fun TodoScreen(vm: MainViewModel) {
                     Text(
                         "已完成 ${done.size}",
                         style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.outline,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Text(if (showDone) "收起 ▴" else "展开 ▾", color = MaterialTheme.colorScheme.outline)
+                    Text(if (showDone) "收起 ▴" else "展开 ▾", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             if (showDone) {
@@ -113,14 +113,14 @@ private fun TodoCard(todo: TodoEntity, onToggle: () -> Unit, onDelete: () -> Uni
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = if (todo.done) FontWeight.Normal else FontWeight.Medium,
                     textDecoration = if (todo.done) TextDecoration.LineThrough else null,
-                    color = if (todo.done) MaterialTheme.colorScheme.outline
+                    color = if (todo.done) MaterialTheme.colorScheme.onSurfaceVariant
                     else MaterialTheme.colorScheme.onSurface,
                 )
                 todo.sourceLabel?.let {
                     Text(
                         "来自 $it",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outline,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -129,7 +129,7 @@ private fun TodoCard(todo: TodoEntity, onToggle: () -> Unit, onDelete: () -> Uni
                     Icons.Filled.Close,
                     contentDescription = "删除",
                     modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.outline,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

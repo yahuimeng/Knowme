@@ -139,7 +139,7 @@ fun SettingsScreen(vm: MainViewModel) {
             Text(
                 "近 7 天每日用量。按 AI 接口上报统计，本地模型可能不上报。",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.outline,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
@@ -158,7 +158,7 @@ fun SettingsScreen(vm: MainViewModel) {
                 Text(
                     "默认全部接收，关掉的 App 之后的通知将被忽略。",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.outline,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 apps.forEach { app ->
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -167,7 +167,7 @@ fun SettingsScreen(vm: MainViewModel) {
                             Text(
                                 "${app.count} 条",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.outline,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                         Switch(
@@ -223,7 +223,7 @@ fun SettingsScreen(vm: MainViewModel) {
                     DigestAutoMode.PERIODIC -> "后台每隔间隔生成一次（系统限制最短 15 分钟，较费电）。"
                 },
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.outline,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
@@ -274,7 +274,7 @@ fun SettingsScreen(vm: MainViewModel) {
             Text(
                 "到期只删「通知原文」（含验证码/私聊等隐私）；待办、早报、问答历史、用量都会保留。",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.outline,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             OutlinedButton(onClick = { showClearDialog = true }) { Text("清空全部数据") }
         }
@@ -295,7 +295,7 @@ fun SettingsScreen(vm: MainViewModel) {
             "Knowme · 替你看通知，慢慢懂你",
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.outline,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(100.dp))  // 给磨砂底栏留出空间
     }
@@ -326,13 +326,13 @@ private fun CollapsibleCard(
                         Text(
                             summary,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.outline,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     Text(
                         if (expanded) "  ▴" else "  ▾",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outline,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -379,7 +379,7 @@ private fun TokenBarChart(daily: List<DailyTokens>) {
                     label,
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
             }
@@ -434,7 +434,7 @@ private fun AiList(
                 Text(
                     p.backend.label,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.outline,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             IconButton(onClick = { onEdit(p) }) {
@@ -541,7 +541,7 @@ private fun AiEditor(
         if (backend == AiBackend.LOCAL) "📴 本地模型完全离线运行，不联网、不花 token。"
         else "🔑 key 用 Android Keystore 加密存在本机，绝不上传。",
         style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.outline,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
 
@@ -623,7 +623,7 @@ private fun LocalModelConfig(vm: MainViewModel, selected: String, onSelect: (Str
                 Text(
                     if (loaded) "运行中 · 已常驻内存" else "未启动",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (loaded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                    color = if (loaded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 FilledIconButton(
                     onClick = {
@@ -643,7 +643,7 @@ private fun LocalModelConfig(vm: MainViewModel, selected: String, onSelect: (Str
             "获取模型：用手机浏览器到 HuggingFace 或镜像站(hf-mirror.com)下载 .gguf 模型，按手机内存选大小" +
                 "（越大越准、越慢），下完点上面「导入」选它。实际效果以所选模型的能力为准。",
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.outline,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

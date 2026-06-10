@@ -74,7 +74,7 @@ fun TimelineScreen(vm: MainViewModel) {
                     Text(
                         "${dayItems.size} 条 ${if (dayExpanded) "▴" else "▾"}",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outline,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -111,7 +111,7 @@ private fun AppGroupItem(group: List<NotificationEntity>) {
                 Text(
                     "${group.size}条 ${if (expanded) "▴" else "▾"}",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.outline,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
@@ -132,7 +132,7 @@ private fun AppGroupItem(group: List<NotificationEntity>) {
                     Text(
                         formatClock(n.postedAt),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.outline,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     val line = snippet(n)
                     if (line.isNotEmpty()) {

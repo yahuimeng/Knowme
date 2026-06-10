@@ -90,12 +90,12 @@ fun TodayScreen(vm: MainViewModel) {
             item { PermissionCard { NotificationAccess.openSettings(context) } }
         }
 
-        // 早报叙事卡
+        // 早报叙事卡（中性底，避免顶部一大块彩色显乱）
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
                 ),
             ) {
                 Column(Modifier.padding(16.dp)) {
@@ -176,7 +176,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.bucket(
             Text(
                 if (expanded) "收起 ▴" else "展开 ▾",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.outline,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
@@ -197,7 +197,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.bucket(
                         Text(
                             formatClock(n.postedAt),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.outline,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                     val main = n.summary ?: listOf(n.title, n.text).filter { it.isNotEmpty() }.joinToString("：")

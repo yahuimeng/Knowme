@@ -104,7 +104,7 @@ private fun StepCard(
         ),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(index, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
+            Text(index, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(title, style = MaterialTheme.typography.titleMedium)
             Text(desc, style = MaterialTheme.typography.bodyMedium)
             action()

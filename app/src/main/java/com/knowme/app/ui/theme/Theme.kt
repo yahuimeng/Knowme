@@ -1,20 +1,21 @@
 package com.knowme.app.ui.theme
 
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
 
+// 品牌兜底配色（仅在不支持动态取色的老设备使用）
 private val LightColors = lightColorScheme(
     primary = InkTeal,
     onPrimary = InkTealOn,
     primaryContainer = TealContainer,
     onPrimaryContainer = OnTealContainer,
-    secondary = InkTeal,
-    onSecondary = InkTealOn,
-    secondaryContainer = TealContainer,
-    onSecondaryContainer = OnTealContainer,
     background = PaperBg,
     onBackground = InkText,
     surface = PaperSurface,
@@ -33,10 +34,6 @@ private val DarkColors = darkColorScheme(
     onPrimary = OnInkTealDark,
     primaryContainer = TealContainerDark,
     onPrimaryContainer = OnTealContainerDark,
-    secondary = InkTealDark,
-    onSecondary = OnInkTealDark,
-    secondaryContainer = TealContainerDark,
-    onSecondaryContainer = OnTealContainerDark,
     background = PaperBgDark,
     onBackground = InkTextDark,
     surface = PaperSurfaceDark,
@@ -53,11 +50,20 @@ private val DarkColors = darkColorScheme(
 @Composable
 fun KnowmeTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    // 恢复 Material You 动态取色：整屏一个和谐色系，最清爽（第一版的感觉）
+    dynamicColor: Boolean = true,
     content: @Composable () -> Unit,
 ) {
-    // 固定品牌配色：不再跟随系统壁纸（动态取色），才有自己的"暖纸感"识别
+    val context = LocalContext.current
+    val colorScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+        darkTheme -> DarkColors
+        else -> LightColors
+    }
     MaterialTheme(
-        colorScheme = if (darkTheme) DarkColors else LightColors,
+        colorScheme = colorScheme,
         typography = KnowmeTypography,
         shapes = KnowmeShapes,
         content = content,
