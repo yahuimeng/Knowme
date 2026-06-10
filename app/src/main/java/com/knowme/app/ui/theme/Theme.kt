@@ -50,8 +50,8 @@ private val DarkColors = darkColorScheme(
 @Composable
 fun KnowmeTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // 恢复 Material You 动态取色：整屏一个和谐色系，最清爽（第一版的感觉）
-    dynamicColor: Boolean = true,
+    // 固定"灰底白卡"品牌配色（不跟随壁纸）：灰画布让白卡浮起来，最清爽舒服
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current

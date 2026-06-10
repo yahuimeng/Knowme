@@ -90,13 +90,14 @@ fun TodayScreen(vm: MainViewModel) {
             item { PermissionCard { NotificationAccess.openSettings(context) } }
         }
 
-        // 早报叙事卡（中性底，避免顶部一大块彩色显乱）
+        // 早报叙事卡（白卡浮在灰底上，与参考一致）
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    containerColor = MaterialTheme.colorScheme.surface,
                 ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
             ) {
                 Column(Modifier.padding(16.dp)) {
                     Text("📖 今天到现在", style = MaterialTheme.typography.titleMedium)
