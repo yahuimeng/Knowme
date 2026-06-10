@@ -24,6 +24,7 @@ sealed interface DigestResult {
  */
 class DigestGenerator(
     private val db: AppDatabase,
+    private val lean: Boolean = false,   // 本地小模型：减负模式（只判优先级，不写摘要/叙事/待办）
     private val chat: suspend (system: String, user: String) -> AiOutcome,
 ) {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
@@ -50,50 +51,66 @@ class DigestGenerator(
 
         // 3) 只有存在"拿不准"的新通知时才调用 AI
         if (forAi.isNotEmpty()) {
-            val outcome = chat(SYSTEM_PROMPT, buildUserPrompt(forAi, all.size))
-            val raw = when (outcome) {
-                is AiOutcome.Ok -> outcome.text
-                is AiOutcome.Error -> return DigestResult.Error(outcome.message)
-            }
-            val parsed = runCatching { json.decodeFromString<DigestPayload>(extractJson(raw)) }
-                .getOrElse { return DigestResult.Error("AI 返回格式无法解析。原文：${raw.take(200)}") }
+            if (lean) {
+                // 本地小模型：减负——只让它判优先级（行格式，最稳），不写摘要/叙事/待办
+                val targets = forAi.takeLast(LEAN_MAX)
+                val outcome = chat(LEAN_SYSTEM, buildLeanPrompt(targets))
+                val raw = when (outcome) {
+                    is AiOutcome.Ok -> outcome.text
+                    is AiOutcome.Error -> return DigestResult.Error(outcome.message)
+                }
+                val validIds = targets.map { it.id }.toSet()
+                parseLeanPriorities(raw).forEach { (id, p) ->
+                    if (id in validIds) db.notificationDao().setAnalysis(id, p, null)
+                }
+                // 未在本轮判定的（超出 LEAN_MAX 的），先按 MID 兜底，避免一直 UNKNOWN
+                forAi.filter { it.id !in validIds }.forEach { db.notificationDao().setAnalysis(it.id, Priority.MID, null) }
+            } else {
+                // 云端大模型：完整 JSON（分级+摘要+待办+叙事）
+                val outcome = chat(SYSTEM_PROMPT, buildUserPrompt(forAi, all.size))
+                val raw = when (outcome) {
+                    is AiOutcome.Ok -> outcome.text
+                    is AiOutcome.Error -> return DigestResult.Error(outcome.message)
+                }
+                val parsed = runCatching { json.decodeFromString<DigestPayload>(extractJson(raw)) }
+                    .getOrElse { return DigestResult.Error("AI 返回格式无法解析。原文：${raw.take(200)}") }
 
-            val validIds = forAi.map { it.id }.toSet()
-            parsed.items.forEach { item ->
-                if (item.id in validIds) {
-                    db.notificationDao().setAnalysis(
-                        id = item.id,
-                        priority = item.toPriority(),
-                        summary = item.summary?.takeIf { it.isNotBlank() },
-                    )
-                }
-            }
-            // 待办：累积 + 内容去重（增量下不会重复抽老条目，根治重复）
-            parsed.todos.take(5).forEach { t ->
-                val c = t.content.trim()
-                if (c.isNotEmpty() && db.todoDao().countWithContent(c) == 0) {
-                    db.todoDao().insert(
-                        TodoEntity(
-                            content = c,
-                            sourceNotificationId = t.sourceId,
-                            sourceLabel = t.sourceLabel,
-                            createdAt = System.currentTimeMillis(),
+                val validIds = forAi.map { it.id }.toSet()
+                parsed.items.forEach { item ->
+                    if (item.id in validIds) {
+                        db.notificationDao().setAnalysis(
+                            id = item.id,
+                            priority = item.toPriority(),
+                            summary = item.summary?.takeIf { it.isNotBlank() },
                         )
-                    )
-                    todoCount++
+                    }
                 }
+                parsed.todos.take(5).forEach { t ->
+                    val c = t.content.trim()
+                    if (c.isNotEmpty() && db.todoDao().countWithContent(c) == 0) {
+                        db.todoDao().insert(
+                            TodoEntity(
+                                content = c,
+                                sourceNotificationId = t.sourceId,
+                                sourceLabel = t.sourceLabel,
+                                createdAt = System.currentTimeMillis(),
+                            )
+                        )
+                        todoCount++
+                    }
+                }
+                aiNarrative = parsed.narrative.trim().takeIf { it.isNotBlank() }
             }
-            aiNarrative = parsed.narrative.trim().takeIf { it.isNotBlank() }
         }
 
-        // 4) 重新读取最新分类，统计并出叙事
+        // 4) 重新读取最新分类，统计并出叙事（lean 一律用本地叙事，避免小模型胡写）
         val fresh = db.notificationDao().between(start, end)
         val high = fresh.count { it.priority == Priority.HIGH }
         val noise = fresh.count { it.priority == Priority.LOW }
         db.digestDao().upsert(
             DigestEntity(
                 dateKey = dateKey,
-                narrative = aiNarrative ?: localNarrative(fresh),
+                narrative = if (lean) localNarrative(fresh) else (aiNarrative ?: localNarrative(fresh)),
                 notificationCount = fresh.size,
                 noiseFolded = noise,
                 generatedAt = System.currentTimeMillis(),
@@ -102,12 +119,19 @@ class DigestGenerator(
         return DigestResult.Ok(handled = high, noiseFolded = noise, todos = todoCount)
     }
 
+    /** 清洗通知文本：去 URL/方括号/多余空白，便于小模型聚焦。 */
+    private fun cleanText(s: String): String =
+        s.replace(Regex("https?://\\S+"), "")
+            .replace(Regex("[【】\\[\\]<>]"), "")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+
     private fun buildUserPrompt(notifications: List<NotificationEntity>, total: Int): String {
         val lines = notifications.joinToString("\n") { n ->
-            "id=${n.id}|${n.appName}|${n.title}|${n.text.take(100)}"
+            "id=${n.id}|${n.appName}|${cleanText("${n.title} ${n.text}").take(80)}"
         }
         return """
-            今天共 $total 条通知，其余已本地折叠为噪音。请只判断下面这 ${notifications.size} 条（id|App|标题|正文）：
+            今天共 $total 条通知，其余已本地折叠为噪音。请只判断下面这 ${notifications.size} 条（id|App|内容）：
             $lines
 
             只输出 JSON，不要任何额外文字：
@@ -117,6 +141,35 @@ class DigestGenerator(
             示例："微信 王总：项目进度发我"→HIGH；"菜鸟 取件码8123"→MID；"某商城 帮我砍一刀"→LOW。
             todos：只抽真正需我主动做的(回复某人/审批/有明确截止)，最多5条，宁缺毋滥；快递到件/账单/促销/闲聊不算。
         """.trimIndent()
+    }
+
+    /** 本地小模型用的极简分类 prompt：只要它输出"id 优先级"。 */
+    private fun buildLeanPrompt(notifications: List<NotificationEntity>): String {
+        val lines = notifications.joinToString("\n") { n ->
+            "${n.id} ${n.appName} ${cleanText("${n.title} ${n.text}").take(50)}"
+        }
+        return """
+            给下面每条通知判优先级。只逐行输出，每行格式：id 空格 HIGH或MID或LOW。不要解释、不要别的字。
+            HIGH=需我亲自回复/处理/有截止；MID=知道就行(快递/账单/验证码/日程)；LOW=噪音(促销/砍价/群闲聊/无关推送)。
+            示例：
+            12 HIGH
+            34 LOW
+            通知：
+            $lines
+        """.trimIndent()
+    }
+
+    /** 容错解析"id 优先级"行：每行取第一个数字 + HIGH/MID/LOW。 */
+    private fun parseLeanPriorities(raw: String): List<Pair<Long, Priority>> {
+        val numRe = Regex("\\d+")
+        val priRe = Regex("HIGH|MID|LOW", RegexOption.IGNORE_CASE)
+        val out = ArrayList<Pair<Long, Priority>>()
+        raw.lineSequence().forEach { line ->
+            val id = numRe.find(line)?.value?.toLongOrNull() ?: return@forEach
+            val pri = priRe.find(line)?.value ?: return@forEach
+            out.add(id to pri.uppercase().toPriority())
+        }
+        return out
     }
 
     /** 不调用 AI 时，本地拼一段叙事（0 token）。 */
@@ -158,6 +211,9 @@ class DigestGenerator(
     companion object {
         private const val SYSTEM_PROMPT =
             "你是用户的私人通知管家。任务是把一堆杂乱通知消化成清晰的每日早报。只输出 JSON，不要解释。"
+        private const val LEAN_SYSTEM =
+            "你是通知优先级分类器。严格按要求逐行输出，不要任何多余文字。"
+        private const val LEAN_MAX = 25   // 本地小模型一次最多判这么多条，避免撑爆/变慢
 
         private val dateFmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 

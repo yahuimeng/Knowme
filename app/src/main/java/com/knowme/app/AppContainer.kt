@@ -132,9 +132,10 @@ class AppContainer(context: Context) {
         scope.launch { localEngine.stop() }
     }
 
-    /** 生成今天的早报；成功后记录时间戳（供自动模式节流）。 */
+    /** 生成今天的早报；成功后记录时间戳（供自动模式节流）。本地模型走减负(lean)模式。 */
     suspend fun generateDigest(): DigestResult {
-        val result = DigestGenerator(db) { s, u -> chat(s, u, "digest") }.generateForToday()
+        val lean = activeProfile()?.backend == AiBackend.LOCAL
+        val result = DigestGenerator(db, lean = lean) { s, u -> chat(s, u, "digest") }.generateForToday()
         if (result is DigestResult.Ok) lastDigestAt = System.currentTimeMillis()
         return result
     }

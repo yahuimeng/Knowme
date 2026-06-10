@@ -93,6 +93,7 @@ fun TodayScreen(vm: MainViewModel) {
         // 早报叙事卡
         item {
             Card(
+                modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                 ),
@@ -212,6 +213,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.bucket(
 @Composable
 private fun PermissionCard(onGrant: () -> Unit) {
     Card(
+        modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.errorContainer,
         ),
