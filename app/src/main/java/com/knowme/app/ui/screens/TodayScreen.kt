@@ -1,5 +1,6 @@
 package com.knowme.app.ui.screens
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,6 +20,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,6 +34,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
@@ -101,6 +108,23 @@ fun TodayScreen(vm: MainViewModel) {
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
             ) {
                 Column(Modifier.padding(16.dp)) {
+                    // 概览：左三档数字 + 右环形图
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            StatRow(priorityColor(Priority.HIGH), high.size, "需处理")
+                            StatRow(priorityColor(Priority.MID), mid.size, "知道就行")
+                            StatRow(priorityColor(Priority.LOW), low.size, "已折叠")
+                        }
+                        PriorityDonut(high.size, mid.size, low.size)
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    HorizontalDivider()
+                    Spacer(Modifier.height(14.dp))
+
                     Text("📖 今天到现在", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(6.dp))
                     Text(
@@ -229,6 +253,55 @@ private fun PermissionCard(onGrant: () -> Unit) {
             )
             Spacer(Modifier.height(12.dp))
             Button(onClick = onGrant) { Text("去授权") }
+        }
+    }
+}
+
+/** 概览的一行统计：彩点 + 大数字 + 标签。 */
+@Composable
+private fun StatRow(color: Color, count: Int, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(10.dp).clip(CircleShape).background(color))
+        Spacer(Modifier.size(8.dp))
+        Text("$count", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.size(6.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** 三档占比环形图，中心显示总数。 */
+@Composable
+private fun PriorityDonut(high: Int, mid: Int, low: Int) {
+    val total = high + mid + low
+    val cHigh = priorityColor(Priority.HIGH)
+    val cMid = priorityColor(Priority.MID)
+    val cLow = priorityColor(Priority.LOW)
+    val track = MaterialTheme.colorScheme.surfaceVariant
+    Box(Modifier.size(92.dp), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            val sw = 12.dp.toPx()
+            val d = size.minDimension - sw
+            val tl = Offset((size.width - d) / 2f, (size.height - d) / 2f)
+            val sz = Size(d, d)
+            drawArc(track, 0f, 360f, false, tl, sz, style = Stroke(sw, cap = StrokeCap.Round))
+            if (total > 0) {
+                var start = -90f
+                listOf(high to cHigh, mid to cMid, low to cLow).forEach { (v, c) ->
+                    if (v > 0) {
+                        val sweep = 360f * v / total
+                        drawArc(c, start, sweep, false, tl, sz, style = Stroke(sw, cap = StrokeCap.Butt))
+                        start += sweep
+                    }
+                }
+            }
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("$total", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("条", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
