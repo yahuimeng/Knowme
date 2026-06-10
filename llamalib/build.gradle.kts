@@ -24,8 +24,10 @@ android {
                 arguments += "-DLLAMA_BUILD_COMMON=ON"
                 arguments += "-DLLAMA_OPENSSL=OFF"
                 arguments += "-DGGML_NATIVE=OFF"
-                arguments += "-DGGML_BACKEND_DL=ON"
-                arguments += "-DGGML_CPU_ALL_VARIANTS=ON"
+                // 关掉动态后端：让 CPU 后端静态编进主库并自动注册，
+                // 否则运行时报 "no backends are loaded" 导致模型加载失败
+                arguments += "-DGGML_BACKEND_DL=OFF"
+                arguments += "-DGGML_CPU_ALL_VARIANTS=OFF"
                 arguments += "-DGGML_LLAMAFILE=OFF"
             }
         }
