@@ -2,42 +2,42 @@ package com.knowme.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// 风格：柔和清新 —— 浅薄荷微染背景 + 白卡片 + 低饱和马卡龙绿，轻松亲和。
-// （变量名沿用，Theme.kt 无需改动；语义见注释）
+// 风格：干净克制 —— 中性浅底 + 白卡片，绿色仅作点缀（不再满屏着色，避免视觉吵闹）。
+// （变量名沿用，Theme.kt 无需改动）
 
 // ── 浅色 ──
-val PaperBg = Color(0xFFEDF5F0)            // 背景：薄荷微染白（明显带绿，区别于纯白）
-val PaperSurface = Color(0xFFFFFFFF)       // 卡片：纯白，在薄荷底上更跳、更清新
-val PaperSurfaceVariant = Color(0xFFDDECE4) // 次级面 / chip：浅薄荷
-val OnSurfaceVariantWarm = Color(0xFF44524B)
-val InkTeal = Color(0xFF2E9E74)            // 主色：低饱和马卡龙绿（友好、明亮）
+val PaperBg = Color(0xFFF5F6F5)            // 背景：近中性浅（几乎无色，干净）
+val PaperSurface = Color(0xFFFFFFFF)       // 卡片：纯白
+val PaperSurfaceVariant = Color(0xFFEBEEEC) // 次级面 / chip：浅中性灰
+val OnSurfaceVariantWarm = Color(0xFF50534F)
+val InkTeal = Color(0xFF2E7D6B)            // 主色：沉静青绿（仅按钮/选中/链接点缀）
 val InkTealOn = Color(0xFFFFFFFF)
-val TealContainer = Color(0xFFCBEBD8)      // hero / primaryContainer：奶绿
-val OnTealContainer = Color(0xFF0E432E)
-val InkText = Color(0xFF1F2B25)            // 正文：深绿灰（非纯黑，更柔）
-val WarmOutline = Color(0xFFA1B3A9)        // 描边：绿灰
-val WarmError = Color(0xFFC24B3C)
+val TealContainer = Color(0xFFD9EBE5)      // hero / primaryContainer：柔青绿
+val OnTealContainer = Color(0xFF0A3B32)
+val InkText = Color(0xFF1C1F1E)            // 正文：中性近黑
+val WarmOutline = Color(0xFFBABEBB)        // 描边：中性灰
+val WarmError = Color(0xFFBA1A1A)
 val OnWarmError = Color(0xFFFFFFFF)
-val WarmErrorContainer = Color(0xFFFAE0DB)
-val OnWarmErrorContainer = Color(0xFF5A1812)
+val WarmErrorContainer = Color(0xFFFFDAD6)
+val OnWarmErrorContainer = Color(0xFF410002)
 
 // ── 深色 ──
-val PaperBgDark = Color(0xFF121815)        // 深绿黑
-val PaperSurfaceDark = Color(0xFF1A211D)
-val PaperSurfaceVariantDark = Color(0xFF283029)
-val OnSurfaceVariantWarmDark = Color(0xFFC2D0C8)
-val InkTealDark = Color(0xFF84D6AE)        // 深色下更亮的薄荷绿
-val OnInkTealDark = Color(0xFF06311F)
-val TealContainerDark = Color(0xFF1E4A38)
-val OnTealContainerDark = Color(0xFFC7EED9)
-val InkTextDark = Color(0xFFE6EFE9)        // 浅绿白正文
-val WarmOutlineDark = Color(0xFF8FA399)
-val WarmErrorDark = Color(0xFFE6A097)
-val OnWarmErrorDark = Color(0xFF44150F)
-val WarmErrorContainerDark = Color(0xFF5C2A24)
-val OnWarmErrorContainerDark = Color(0xFFF6DDD7)
+val PaperBgDark = Color(0xFF121413)
+val PaperSurfaceDark = Color(0xFF1C1F1E)
+val PaperSurfaceVariantDark = Color(0xFF2A2E2C)
+val OnSurfaceVariantWarmDark = Color(0xFFC4C8C4)
+val InkTealDark = Color(0xFF7CD0BD)
+val OnInkTealDark = Color(0xFF06372E)
+val TealContainerDark = Color(0xFF1E4A41)
+val OnTealContainerDark = Color(0xFFC6EBE0)
+val InkTextDark = Color(0xFFE3E3E0)
+val WarmOutlineDark = Color(0xFF8B8F8C)
+val WarmErrorDark = Color(0xFFFFB4AB)
+val OnWarmErrorDark = Color(0xFF690005)
+val WarmErrorContainerDark = Color(0xFF93000A)
+val OnWarmErrorContainerDark = Color(0xFFFFDAD6)
 
-// ── 三档优先级语义色 ──
-val PriorityHigh = Color(0xFFCF5043)   // 🔴 需要你处理
-val PriorityMid = Color(0xFFD49A3C)    // 🟡 知道就行
-val PriorityLow = Color(0xFF97A89E)    // ⚪️ 噪音（绿灰，融入清新底）
+// ── 三档优先级语义色（克制）──
+val PriorityHigh = Color(0xFFC1453A)   // 🔴 需要你处理
+val PriorityMid = Color(0xFFC2862A)    // 🟡 知道就行
+val PriorityLow = Color(0xFF9AA09C)    // ⚪️ 噪音

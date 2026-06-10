@@ -6,9 +6,9 @@ import androidx.compose.ui.unit.dp
 
 // 比系统默认更大的圆角，卡片更柔、更"设计感"
 val KnowmeShapes = Shapes(
-    extraSmall = RoundedCornerShape(10.dp),
-    small = RoundedCornerShape(14.dp),
-    medium = RoundedCornerShape(20.dp),   // Card 默认用 medium，更圆更亲和
-    large = RoundedCornerShape(26.dp),
-    extraLarge = RoundedCornerShape(32.dp),
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(16.dp),   // Card 默认用 medium，克制
+    large = RoundedCornerShape(22.dp),
+    extraLarge = RoundedCornerShape(28.dp),
 )
