@@ -74,9 +74,9 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
 
     // ── 本地模型 ──
     val localModels: StateFlow<List<String>> = container.localModels
-    val downloadProgress: StateFlow<Float?> = container.downloadProgress
-    fun downloadModel(url: String, name: String, onDone: (Result<Unit>) -> Unit) =
-        container.downloadModel(url, name, onDone)
+    val importProgress: StateFlow<Float?> = container.downloadProgress
+    fun importModel(uri: android.net.Uri, onDone: (Result<String>) -> Unit) =
+        container.importModel(uri, onDone)
     fun deleteModel(name: String) = container.deleteModel(name)
 
     fun testConnection(config: AiConfig, onResult: (AiOutcome) -> Unit) {

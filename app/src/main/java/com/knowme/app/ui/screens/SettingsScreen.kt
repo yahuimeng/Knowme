@@ -1,5 +1,7 @@
 package com.knowme.app.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -546,16 +548,24 @@ private fun AiEditor(
 @Composable
 private fun LocalModelConfig(vm: MainViewModel, selected: String, onSelect: (String) -> Unit) {
     val models by vm.localModels.collectAsState()
-    val progress by vm.downloadProgress.collectAsState()
-    var dlName by remember { mutableStateOf("") }
-    var dlUrl by remember { mutableStateOf("") }
+    val progress by vm.importProgress.collectAsState()
     var msg by remember { mutableStateOf<String?>(null) }
 
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            msg = null
+            vm.importModel(uri) { r ->
+                msg = r.fold({ "✅ 已导入 $it" }, { "❌ ${it.message}" })
+                r.getOrNull()?.let { onSelect(it) }
+            }
+        }
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("选择本地模型", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+        Text("已导入的本地模型", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
         if (models.isEmpty()) {
             Text(
-                "还没有本地模型，在下面下载一个（.gguf 格式，如 Qwen）。",
+                "还没有本地模型。先按下面指引下载 .gguf，再点「选择文件」导入。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -574,44 +584,29 @@ private fun LocalModelConfig(vm: MainViewModel, selected: String, onSelect: (Str
         }
 
         HorizontalDivider()
-        Text("下载模型", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-        OutlinedTextField(
-            value = dlName, onValueChange = { dlName = it },
-            label = { Text("保存文件名（如 qwen2.5-3b-q4.gguf）") },
-            modifier = Modifier.fillMaxWidth(), singleLine = true,
-        )
-        OutlinedTextField(
-            value = dlUrl, onValueChange = { dlUrl = it },
-            label = { Text("模型下载直链 URL") },
-            modifier = Modifier.fillMaxWidth(), singleLine = true,
-        )
+
         val p = progress
         if (p != null) {
             if (p >= 0f) {
                 LinearProgressIndicator(progress = { p.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
-                Text("下载中 ${(p * 100).toInt()}%", style = MaterialTheme.typography.bodyMedium)
+                Text("导入中 ${(p * 100).toInt()}%（大文件较慢，请稍候）", style = MaterialTheme.typography.bodyMedium)
             } else {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                Text("下载中…", style = MaterialTheme.typography.bodyMedium)
+                Text("导入中…", style = MaterialTheme.typography.bodyMedium)
             }
         } else {
-            Button(
-                onClick = {
-                    msg = null
-                    if (dlUrl.isBlank() || dlName.isBlank()) {
-                        msg = "请填写文件名和下载链接。"
-                    } else {
-                        vm.downloadModel(dlUrl, dlName) { r ->
-                            msg = r.fold({ "✅ 下载完成，可在上方选择" }, { "❌ ${it.message}" })
-                            if (r.isSuccess) { dlName = ""; dlUrl = "" }
-                        }
-                    }
-                },
-            ) { Text("下载") }
+            Button(onClick = { msg = null; picker.launch(arrayOf("*/*")) }) {
+                Text("选择 .gguf 文件")
+            }
         }
         msg?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+
+        Text("怎么获取模型", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
         Text(
-            "模型通常 1~2.5GB，建议 WiFi。机型/内存不足时推理会失败。中文推荐 Qwen2.5 3B 的 .gguf（Q4 量化）。",
+            "1. 用手机浏览器去 HuggingFace（或国内镜像 hf-mirror.com），搜 “Qwen2.5 GGUF”。\n" +
+                "2. 推荐下载 Qwen2.5-3B-Instruct 的 Q4_K_M（约 2GB，中文好、多数手机能跑）；低配机选 1.5B。\n" +
+                "3. 下到手机后，点上面「选择 .gguf 文件」选中它即可。\n" +
+                "需 ~3GB 空闲内存，机型/内存不足推理会失败。",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.outline,
         )

@@ -110,11 +110,12 @@ class AppContainer(context: Context) {
     }
 
     // ── 本地模型管理 ──
-    fun downloadModel(url: String, name: String, onDone: (Result<Unit>) -> Unit) {
-        if (_downloadProgress.value != null) return  // 已在下载
+    /** 从系统文件选择器选中的 .gguf 导入。 */
+    fun importModel(uri: android.net.Uri, onDone: (Result<String>) -> Unit) {
+        if (_downloadProgress.value != null) return  // 正在导入
         _downloadProgress.value = 0f
         scope.launch {
-            val result = modelManager.download(url.trim(), name.trim()) { p -> _downloadProgress.value = p }
+            val result = modelManager.importFrom(appContext.contentResolver, uri) { p -> _downloadProgress.value = p }
             _localModels.value = modelManager.listModels()
             _downloadProgress.value = null
             onDone(result)
