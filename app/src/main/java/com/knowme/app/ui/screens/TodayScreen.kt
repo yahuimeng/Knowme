@@ -202,52 +202,79 @@ private fun androidx.compose.foundation.lazy.LazyListScope.bucket(
         }
     }
     if (!expanded) return
-    items(list, key = { it.id }) { n ->
-        // 每条可点开看全文：默认 3 行，溢出时才出现「展开全文」，点击展开/收起
-        var expanded by rememberSaveable(n.id) { mutableStateOf(false) }
-        var overflow by remember(n.id) { mutableStateOf(false) }
-        val canExpand = overflow || expanded
-        Card(Modifier.fillMaxWidth()) {
+    // 天内按 App 聚合：同一 App 多条收成一行可展开（与时间线一致）
+    val groups = list.groupBy { it.packageName }.values.toList()
+    items(groups, key = { it.first().id }) { group -> TodayAppGroup(group, priority, onEngage) }
+}
+
+/** 今日某档内、同一 App 的一组通知：多条折叠成一行；单条过长可点开看全文。 */
+@Composable
+private fun TodayAppGroup(
+    group: List<NotificationEntity>,
+    priority: Priority,
+    onEngage: (NotificationEntity) -> Unit,
+) {
+    val latest = group.first()
+    val multi = group.size > 1
+    var expanded by rememberSaveable(latest.id) { mutableStateOf(false) }
+    var overflow by remember(latest.id) { mutableStateOf(false) }
+    val canExpand = multi || overflow || expanded
+
+    fun contentOf(n: NotificationEntity): String =
+        n.summary ?: listOf(n.title, n.text).filter { it.isNotEmpty() }.joinToString("：")
+
+    Card(Modifier.fillMaxWidth()) {
+        Column(
+            Modifier.fillMaxWidth()
+                .clickable(enabled = canExpand) { expanded = !expanded; if (expanded) onEngage(latest) }
+                .padding(12.dp),
+        ) {
             Row(
-                Modifier
-                    .clickable(enabled = canExpand) { expanded = !expanded; if (expanded) onEngage(n) }
-                    .padding(12.dp),
-                verticalAlignment = Alignment.Top,
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(
-                    Modifier
-                        .padding(top = 6.dp)
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(priorityColor(priority)),
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(8.dp).clip(CircleShape).background(priorityColor(priority)))
+                    Spacer(Modifier.size(8.dp))
+                    Text(latest.appName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                }
+                Text(
+                    when {
+                        multi -> "${group.size}条 · ${formatClock(latest.postedAt)} ${if (expanded) "▴" else "▾"}"
+                        canExpand -> "${formatClock(latest.postedAt)} ${if (expanded) "▴" else "▾"}"
+                        else -> formatClock(latest.postedAt)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Column(Modifier.padding(start = 10.dp).fillMaxWidth()) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(n.appName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            formatClock(n.postedAt),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    val main = n.summary ?: listOf(n.title, n.text).filter { it.isNotEmpty() }.joinToString("：")
+            }
+            if (multi && expanded) {
+                group.forEachIndexed { i, n ->
+                    if (i == 0) Spacer(Modifier.height(8.dp))
+                    else HorizontalDivider(Modifier.padding(vertical = 8.dp))
+                    Text(
+                        formatClock(n.postedAt),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    val main = contentOf(n)
                     if (main.isNotEmpty()) {
-                        Text(
-                            main,
-                            style = MaterialTheme.typography.bodyLarge,
-                            maxLines = if (expanded) Int.MAX_VALUE else 3,
-                            overflow = TextOverflow.Ellipsis,
-                            onTextLayout = { if (!expanded) overflow = it.hasVisualOverflow },
-                        )
-                        if (canExpand) {
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                if (expanded) "收起 ▴" else "展开全文 ▾",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        }
+                        Spacer(Modifier.height(2.dp))
+                        Text(main, style = MaterialTheme.typography.bodyLarge)
                     }
+                }
+            } else {
+                val main = contentOf(latest)
+                if (main.isNotEmpty()) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        main,
+                        style = MaterialTheme.typography.bodyLarge,
+                        maxLines = if (multi) 1 else if (expanded) Int.MAX_VALUE else 3,
+                        overflow = TextOverflow.Ellipsis,
+                        onTextLayout = { if (!multi && !expanded) overflow = it.hasVisualOverflow },
+                    )
                 }
             }
         }

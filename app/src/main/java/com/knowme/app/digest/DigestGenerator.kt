@@ -87,7 +87,11 @@ class DigestGenerator(
                         )
                     }
                 }
-                parsed.todos.take(5).forEach { t ->
+                // 收紧：只保留挂在"要紧(HIGH)"通知上的待办（未标来源的信任 prompt），最多 3 条
+                val highIds = parsed.items.filter { it.toPriority() == Priority.HIGH }.map { it.id }.toSet()
+                parsed.todos
+                    .filter { it.sourceId == null || it.sourceId in highIds }
+                    .take(3).forEach { t ->
                     val c = t.content.trim()
                     if (c.isNotEmpty() && db.todoDao().countWithContent(c) == 0) {
                         db.todoDao().insert(
@@ -175,7 +179,7 @@ class DigestGenerator(
 
             分级标准：HIGH=需我亲自处理/回复/有截止；MID=知道就行(日程/快递/账单/验证码)；LOW=噪音(促销/砍价/无关推送/群闲聊)。
             示例："微信 王总：项目进度发我"→HIGH；"菜鸟 取件码8123"→MID；"某商城 帮我砍一刀"→LOW。
-            todos：只抽真正需我主动做的(回复某人/审批/有明确截止)，最多5条，宁缺毋滥；快递到件/账单/促销/闲聊不算。
+            todos：只对你判为 HIGH 的通知抽，且必须是需我亲自动手的动作(回复某人/审批/有明确截止)，最多3条，宁缺毋滥；快递到件/账单/验证码/促销/群闲聊一律不抽，没有就给空数组 []。
         """.trimIndent()
     }
 
