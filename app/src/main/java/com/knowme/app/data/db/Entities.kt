@@ -26,6 +26,23 @@ data class NotificationEntity(
     val priority: Priority = Priority.UNKNOWN,
     val summary: String? = null,   // AI 提炼的一句话摘要
     val handled: Boolean = false,  // 用户是否已处理/已读
+    val sender: String? = null,    // 发信人/来源（IM 场景常为 title），用于"越用越懂你"按来源学习
+    val category: String? = null,  // 系统通知分类（msg/email/...），辅助信号
+)
+
+/**
+ * 「越用越懂你」的偏好信号聚合：按"来源"累计用户的互动（点开/展开=engaged，划走=ignored）。
+ * 纯本地、零配置：从日常行为里被动学习，不让用户填表。
+ */
+@Entity(tableName = "pref_signals")
+data class PrefSignalEntity(
+    @PrimaryKey val key: String,   // "app:<pkg>" 或 "src:<pkg>|<sender>"
+    val kind: String,              // "APP" / "SENDER"
+    val packageName: String,
+    val label: String,             // 显示名，如「微信·老张」或「微信」
+    val engaged: Int = 0,          // 在乎信号累计（点开/展开）
+    val ignored: Int = 0,          // 不在乎信号累计（划走）
+    val updatedAt: Long = 0,
 )
 
 /** 从通知中抽取出的待办。 */

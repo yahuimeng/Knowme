@@ -40,6 +40,10 @@ interface NotificationDao {
     @Query("UPDATE notifications SET priority = :priority, summary = :summary WHERE id = :id")
     suspend fun setAnalysis(id: Long, priority: Priority, summary: String?)
 
+    /** 只改优先级（不动摘要）：给"常关注来源"兜底升档用。 */
+    @Query("UPDATE notifications SET priority = :priority WHERE id = :id")
+    suspend fun setPriority(id: Long, priority: Priority)
+
     @Query("SELECT * FROM notifications WHERE postedAt BETWEEN :start AND :end ORDER BY postedAt DESC")
     fun observeBetween(start: Long, end: Long): Flow<List<NotificationEntity>>
 
@@ -194,6 +198,28 @@ interface MessageDao {
     suspend fun deleteByConversation(cid: Long)
 
     @Query("DELETE FROM messages")
+    suspend fun clear()
+}
+
+@Dao
+interface PrefSignalDao {
+    /** 先保证行存在（已存在则忽略），再用 bump 累加，避免覆盖已有计数。 */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun ensure(row: PrefSignalEntity)
+
+    @Query(
+        "UPDATE pref_signals SET engaged = engaged + :de, ignored = ignored + :di, " +
+            "label = :label, updatedAt = :t WHERE key = :key"
+    )
+    suspend fun bump(key: String, de: Int, di: Int, label: String, t: Long)
+
+    @Query("SELECT * FROM pref_signals ORDER BY (engaged - ignored) DESC, updatedAt DESC")
+    fun observeAll(): Flow<List<PrefSignalEntity>>
+
+    @Query("SELECT * FROM pref_signals")
+    suspend fun all(): List<PrefSignalEntity>
+
+    @Query("DELETE FROM pref_signals")
     suspend fun clear()
 }
 

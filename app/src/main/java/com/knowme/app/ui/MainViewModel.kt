@@ -18,6 +18,7 @@ import com.knowme.app.data.db.TokenTotals
 import com.knowme.app.digest.DigestAutoMode
 import com.knowme.app.digest.DigestGenerator
 import com.knowme.app.digest.DigestResult
+import com.knowme.app.learn.PreferenceLearner
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -109,6 +111,20 @@ class MainViewModel(private val container: AppContainer) : ViewModel() {
 
     fun deleteTodo(todo: TodoEntity) {
         viewModelScope.launch { todoDao.delete(todo) }
+    }
+
+    // ── 越用越懂你：学到的偏好（常关注 / 常忽略）+ 信号采集 ──
+    val learnedPrefs: StateFlow<PreferenceLearner.Summary> =
+        container.preferences.map { PreferenceLearner.summarize(it) }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PreferenceLearner.Summary(emptyList(), emptyList()))
+
+    /** 用户在 App 内展开了某条通知 → 记一次"在乎"。 */
+    fun recordEngagement(n: NotificationEntity) {
+        viewModelScope.launch { container.recordEngagement(n) }
+    }
+
+    fun resetPreferences() {
+        viewModelScope.launch { container.resetPreferences() }
     }
 
     fun generateDigest(onResult: (DigestResult) -> Unit) {

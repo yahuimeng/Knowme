@@ -16,6 +16,10 @@ import com.knowme.app.digest.DigestAutoMode
 import com.knowme.app.digest.DigestGenerator
 import com.knowme.app.digest.DigestResult
 import com.knowme.app.digest.DigestScheduler
+import com.knowme.app.data.db.NotificationEntity
+import com.knowme.app.data.db.PrefSignalEntity
+import com.knowme.app.learn.PreferenceLearner
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -34,6 +38,10 @@ class AppContainer(context: Context) {
     val db: AppDatabase = AppDatabase.get(context)
     private val secureStore = SecureConfigStore(context)
     private val prefs = context.getSharedPreferences("knowme_prefs", Context.MODE_PRIVATE)
+
+    // 「越用越懂你」被动学习器
+    private val learner = PreferenceLearner(db.prefSignalDao())
+    val preferences: Flow<List<PrefSignalEntity>> get() = learner.observe()
 
     // 端侧本地模型
     private val localEngine = LocalLlmEngine(appContext)
@@ -149,10 +157,27 @@ class AppContainer(context: Context) {
     /** 生成今天的早报；成功后记录时间戳（供自动模式节流）。本地模型走减负(lean)模式。 */
     suspend fun generateDigest(): DigestResult {
         val lean = activeProfile()?.backend == AiBackend.LOCAL
-        val result = DigestGenerator(db, lean = lean) { s, u -> chat(s, u, "digest") }.generateForToday()
+        val profile = learner.buildProfile()       // 注入分类 prompt 的偏好块（可能为空）
+        val loved = learner.lovedKeys()             // 常关注来源：被判 LOW 时兜底升档
+        val result = DigestGenerator(
+            db, lean = lean, profile = profile, lovedKeys = loved,
+        ) { s, u -> chat(s, u, "digest") }.generateForToday()
         if (result is DigestResult.Ok) lastDigestAt = System.currentTimeMillis()
         return result
     }
+
+    // ── 越用越懂你：信号采集与查看 ──
+    /** 通知被点开/划走（来自 Listener）。 */
+    suspend fun recordSignal(pkg: String, appName: String, sender: String?, engaged: Int, ignored: Int) {
+        learner.record(pkg, appName, sender, engaged = engaged, ignored = ignored)
+    }
+
+    /** 在 App 内展开了某条通知 → 在乎信号（来自 UI）。 */
+    suspend fun recordEngagement(n: NotificationEntity) {
+        learner.record(n.packageName, n.appName, n.sender, engaged = 1)
+    }
+
+    suspend fun resetPreferences() = learner.reset()
 
     /** 手动「重新生成」：无新通知则不重复消化（除非从未生成过）。 */
     suspend fun manualGenerate(): DigestResult {
@@ -307,6 +332,7 @@ class AppContainer(context: Context) {
         db.tokenUsageDao().clear()
         db.conversationDao().clear()
         db.messageDao().clear()
+        db.prefSignalDao().clear()
     }
 
     private companion object {

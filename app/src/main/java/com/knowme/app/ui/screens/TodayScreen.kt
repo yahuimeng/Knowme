@@ -167,9 +167,9 @@ fun TodayScreen(vm: MainViewModel) {
             }
         }
 
-        bucket("🔴 要紧", high, Priority.HIGH, highExpanded) { highExpanded = !highExpanded }
-        bucket("🟡 留意", mid, Priority.MID, midExpanded) { midExpanded = !midExpanded }
-        bucket("⚪️ 噪音", low, Priority.LOW, lowExpanded) { lowExpanded = !lowExpanded }
+        bucket("🔴 要紧", high, Priority.HIGH, highExpanded, vm::recordEngagement) { highExpanded = !highExpanded }
+        bucket("🟡 留意", mid, Priority.MID, midExpanded, vm::recordEngagement) { midExpanded = !midExpanded }
+        bucket("⚪️ 噪音", low, Priority.LOW, lowExpanded, vm::recordEngagement) { lowExpanded = !lowExpanded }
 
         item { Spacer(Modifier.height(100.dp)) }  // 给磨砂底栏留出空间
     }
@@ -180,6 +180,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.bucket(
     list: List<NotificationEntity>,
     priority: Priority,
     expanded: Boolean,
+    onEngage: (NotificationEntity) -> Unit,
     onToggle: () -> Unit,
 ) {
     if (list.isEmpty()) return
@@ -209,7 +210,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.bucket(
         Card(Modifier.fillMaxWidth()) {
             Row(
                 Modifier
-                    .clickable(enabled = canExpand) { expanded = !expanded }
+                    .clickable(enabled = canExpand) { expanded = !expanded; if (expanded) onEngage(n) }
                     .padding(12.dp),
                 verticalAlignment = Alignment.Top,
             ) {

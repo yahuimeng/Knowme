@@ -82,7 +82,7 @@ fun TimelineScreen(vm: MainViewModel) {
             if (dayExpanded) {
                 // 天内按 App 聚合，App 顺序 = 最新一条的先后
                 val byApp = dayItems.groupBy { it.packageName }.values.toList()
-                items(byApp, key = { it.first().id }) { group -> AppGroupItem(group) }
+                items(byApp, key = { it.first().id }) { group -> AppGroupItem(group, vm::recordEngagement) }
             }
         }
         item { Spacer(Modifier.height(100.dp)) }  // 给磨砂底栏留出空间
@@ -91,7 +91,7 @@ fun TimelineScreen(vm: MainViewModel) {
 
 /** 同一 App 当天的通知聚合成一组：多条可折叠；单条若过长也可点开看全文。 */
 @Composable
-private fun AppGroupItem(group: List<NotificationEntity>) {
+private fun AppGroupItem(group: List<NotificationEntity>, onEngage: (NotificationEntity) -> Unit) {
     val latest = group.first()
     val multi = group.size > 1
     var expanded by remember(latest.id) { mutableStateOf(false) }
@@ -101,7 +101,9 @@ private fun AppGroupItem(group: List<NotificationEntity>) {
 
     Card(Modifier.fillMaxWidth()) {
         Column(
-            Modifier.fillMaxWidth().clickable(enabled = canExpand) { expanded = !expanded }.padding(14.dp),
+            Modifier.fillMaxWidth()
+                .clickable(enabled = canExpand) { expanded = !expanded; if (expanded) onEngage(latest) }
+                .padding(14.dp),
         ) {
             Row(
                 Modifier.fillMaxWidth(),

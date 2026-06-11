@@ -13,8 +13,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         NotificationEntity::class, TodoEntity::class, DigestEntity::class,
         AskMessageEntity::class, TokenUsageEntity::class,
         ConversationEntity::class, ChatMessageEntity::class,
+        PrefSignalEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -26,6 +27,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun tokenUsageDao(): TokenUsageDao
     abstract fun conversationDao(): ConversationDao
     abstract fun messageDao(): MessageDao
+    abstract fun prefSignalDao(): PrefSignalDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
@@ -87,13 +89,32 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v4→v5：通知加 sender/category 列；新增 pref_signals 偏好信号表（越用越懂你）。 */
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE notifications ADD COLUMN sender TEXT")
+                db.execSQL("ALTER TABLE notifications ADD COLUMN category TEXT")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `pref_signals` (" +
+                        "`key` TEXT PRIMARY KEY NOT NULL, " +
+                        "`kind` TEXT NOT NULL, " +
+                        "`packageName` TEXT NOT NULL, " +
+                        "`label` TEXT NOT NULL, " +
+                        "`engaged` INTEGER NOT NULL, " +
+                        "`ignored` INTEGER NOT NULL, " +
+                        "`updatedAt` INTEGER NOT NULL)"
+                )
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "knowme.db",
-                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build().also { instance = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .build().also { instance = it }
             }
     }
 }

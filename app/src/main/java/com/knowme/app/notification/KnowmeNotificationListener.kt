@@ -30,6 +30,28 @@ class KnowmeNotificationListener : NotificationListenerService() {
         }
     }
 
+    /**
+     * 通知被移除：最干净的被动学习信号。
+     *  REASON_CLICK  = 用户点开了 → 在乎（engaged）
+     *  REASON_CANCEL = 用户划走了 → 多半不在乎（ignored，权重低）
+     * 其余原因（系统/App 自行取消）不计入，避免噪音。
+     */
+    override fun onNotificationRemoved(
+        sbn: StatusBarNotification?,
+        rankingMap: RankingMap?,
+        reason: Int,
+    ) {
+        sbn ?: return
+        val engaged = if (reason == REASON_CLICK) 1 else 0
+        val ignored = if (reason == REASON_CANCEL) 1 else 0
+        if (engaged == 0 && ignored == 0) return
+        val pkg = sbn.packageName ?: return
+        val appName = resolveAppName(pkg)
+        val sender = sbn.senderOrNull()
+        val container = (applicationContext as KnowmeApp).container
+        scope.launch { container.recordSignal(pkg, appName, sender, engaged, ignored) }
+    }
+
     private fun StatusBarNotification.toEntity(): NotificationEntity? {
         // 跳过常驻/进行中通知（音乐、下载进度等）与分组汇总，避免噪音
         val flags = notification.flags
@@ -52,7 +74,17 @@ class KnowmeNotificationListener : NotificationListenerService() {
             title = title,
             text = text,
             postedAt = if (postTime > 0) postTime else System.currentTimeMillis(),
+            sender = senderOrNull(),
+            category = notification.category,
         )
+    }
+
+    /** 抽发信人/来源：优先会话标题，其次标题（IM 场景标题通常是对方名字）。 */
+    private fun StatusBarNotification.senderOrNull(): String? {
+        val extras = notification.extras ?: return null
+        val conv = extras.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)?.toString()?.trim()
+        if (!conv.isNullOrEmpty()) return conv
+        return extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim()?.takeIf { it.isNotEmpty() }
     }
 
     private fun resolveAppName(pkg: String): String = runCatching {

@@ -25,6 +25,8 @@ sealed interface DigestResult {
 class DigestGenerator(
     private val db: AppDatabase,
     private val lean: Boolean = false,   // 本地小模型：减负模式（只判优先级，不写摘要/叙事/待办）
+    private val profile: String = "",    // 「越用越懂你」偏好块，注入分类 prompt（可能为空）
+    private val lovedKeys: Set<String> = emptySet(),  // 常关注来源 "src:pkg|sender"，被判 LOW 时兜底升档
     private val chat: suspend (system: String, user: String) -> AiOutcome,
 ) {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
@@ -103,6 +105,14 @@ class DigestGenerator(
             }
         }
 
+        // 3.5) 兜底：常关注来源若被判 LOW，升一档到 MID——只升不降，绝不本地把消息藏掉
+        if (lovedKeys.isNotEmpty()) {
+            db.notificationDao().between(start, end)
+                .filter { it.priority == Priority.LOW && it.sender != null &&
+                    "src:${it.packageName}|${it.sender}" in lovedKeys }
+                .forEach { db.notificationDao().setPriority(it.id, Priority.MID) }
+        }
+
         // 4) 重新读取最新分类，统计并出叙事
         val fresh = db.notificationDao().between(start, end)
         val high = fresh.count { it.priority == Priority.HIGH }
@@ -148,12 +158,16 @@ class DigestGenerator(
             .replace(Regex("\\s+"), " ")
             .trim()
 
+    /** 「越用越懂你」偏好块：非空时作为判断依据注入 prompt 顶部；为空则不影响原行为。 */
+    private fun profileBlock(): String =
+        if (profile.isBlank()) "" else "关于这位用户（据此判断，他在乎的人/事宁可判高一档）：\n$profile\n\n"
+
     private fun buildUserPrompt(notifications: List<NotificationEntity>, total: Int): String {
         val lines = notifications.joinToString("\n") { n ->
             "id=${n.id}|${n.appName}|${cleanText("${n.title} ${n.text}").take(80)}"
         }
         return """
-            今天共 $total 条通知，其余已本地折叠为噪音。请只判断下面这 ${notifications.size} 条（id|App|内容）：
+            ${profileBlock()}今天共 $total 条通知，其余已本地折叠为噪音。请只判断下面这 ${notifications.size} 条（id|App|内容）：
             $lines
 
             只输出 JSON，不要任何额外文字：
@@ -171,7 +185,7 @@ class DigestGenerator(
             "${n.id} ${n.appName} ${cleanText("${n.title} ${n.text}").take(50)}"
         }
         return """
-            给下面每条通知判优先级。只逐行输出，每行格式：id 空格 HIGH或MID或LOW。不要解释、不要别的字。
+            ${profileBlock()}给下面每条通知判优先级。只逐行输出，每行格式：id 空格 HIGH或MID或LOW。不要解释、不要别的字。
             HIGH=需我亲自回复/处理/有截止；MID=知道就行(快递/账单/验证码/日程)；LOW=噪音(促销/砍价/群闲聊/无关推送)。
             示例：
             12 HIGH

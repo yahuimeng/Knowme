@@ -88,12 +88,14 @@ fun SettingsScreen(vm: MainViewModel) {
     val daily by vm.dailyTokens.collectAsState()
     val apps by vm.apps.collectAsState()
     val blocked by vm.blockedPackages.collectAsState()
+    val learned by vm.learnedPrefs.collectAsState()
 
     var editing by remember { mutableStateOf<AiProfile?>(null) }
     var retention by remember { mutableStateOf(vm.retentionDays) }
     var digestMode by remember { mutableStateOf(vm.digestMode) }
     var interval by remember { mutableStateOf(vm.digestIntervalMin) }
     var showClearDialog by remember { mutableStateOf(false) }
+    var showResetPrefDialog by remember { mutableStateOf(false) }
 
     Column(
         Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
@@ -183,7 +185,44 @@ fun SettingsScreen(vm: MainViewModel) {
             }
         }
 
-        // ④ 自动消化
+        // ④ 它学到了什么（越用越懂你）
+        val learnedCount = learned.loved.size + learned.muted.size
+        CollapsibleCard(
+            title = "🧠 它学到了什么",
+            summary = if (learnedCount == 0) "学习中" else "已认识 $learnedCount 个来源",
+        ) {
+            Text(
+                "Knowme 会从你的日常使用里悄悄学：你常点开/展开谁、把谁划走，从而越来越懂你在乎什么。无需任何设置。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (learned.loved.isEmpty() && learned.muted.isEmpty()) {
+                Text(
+                    "还在观察中。多用几天，点开你在乎的、划走你不在乎的，这里就会显示。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                if (learned.loved.isNotEmpty()) {
+                    Text("你常关注", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    Text(
+                        learned.loved.joinToString(" · "),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
+                if (learned.muted.isNotEmpty()) {
+                    Text("你常忽略", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    Text(
+                        learned.muted.joinToString(" · "),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                OutlinedButton(onClick = { showResetPrefDialog = true }) { Text("重置学习") }
+            }
+        }
+
+        // ⑤ 自动消化
         val modeLabel = when (digestMode) {
             DigestAutoMode.MANUAL -> "手动"
             DigestAutoMode.ON_OPEN -> "打开App时 · ${interval}分钟"
@@ -292,6 +331,18 @@ fun SettingsScreen(vm: MainViewModel) {
                     TextButton(onClick = { vm.clearAllData(); showClearDialog = false }) { Text("清空") }
                 },
                 dismissButton = { TextButton(onClick = { showClearDialog = false }) { Text("取消") } },
+            )
+        }
+
+        if (showResetPrefDialog) {
+            AlertDialog(
+                onDismissRequest = { showResetPrefDialog = false },
+                title = { Text("重置学习？") },
+                text = { Text("将清空它学到的偏好，三档判断回到通用基线。之后会重新开始学习。") },
+                confirmButton = {
+                    TextButton(onClick = { vm.resetPreferences(); showResetPrefDialog = false }) { Text("重置") }
+                },
+                dismissButton = { TextButton(onClick = { showResetPrefDialog = false }) { Text("取消") } },
             )
         }
 
