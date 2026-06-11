@@ -109,12 +109,18 @@ class DigestGenerator(
             }
         }
 
-        // 3.5) 兜底：常关注来源若被判 LOW，升一档到 MID——只升不降，绝不本地把消息藏掉
-        if (lovedKeys.isNotEmpty()) {
-            db.notificationDao().between(start, end)
-                .filter { it.priority == Priority.LOW && it.sender != null &&
-                    "src:${it.packageName}|${it.sender}" in lovedKeys }
-                .forEach { db.notificationDao().setPriority(it.id, Priority.MID) }
+        // 3.5) 确定性来源兜底（只升不降，绝不把消息藏掉）：
+        //   ① 群聊被 @我 → 一律 HIGH（最该立刻看）
+        //   ② 真人通讯被判 LOW → 至少 MID（不当噪音折叠）
+        //   ③ 常关注来源被判 LOW → 至少 MID
+        db.notificationDao().between(start, end).forEach { n ->
+            val lovedHit = n.sender != null && "src:${n.packageName}|${n.sender}" in lovedKeys
+            when {
+                NotificationClassifier.isMention(n) && n.priority != Priority.HIGH ->
+                    db.notificationDao().setPriority(n.id, Priority.HIGH)
+                n.priority == Priority.LOW && (NotificationClassifier.isComms(n) || lovedHit) ->
+                    db.notificationDao().setPriority(n.id, Priority.MID)
+            }
         }
 
         // 4) 重新读取最新分类，统计并出叙事
@@ -177,7 +183,9 @@ class DigestGenerator(
             只输出 JSON，不要任何额外文字：
             {"narrative":"50字内中文，概括今天(可提到共${total}条)","items":[{"id":数字,"priority":"HIGH|MID|LOW","summary":"仅HIGH/MID写一句话，LOW可省略"}],"todos":[{"content":"动宾短语","sourceId":数字,"sourceLabel":"微信·王总 09:12"}]}
 
-            分级标准：HIGH=需我亲自处理/回复/有截止；MID=知道就行(日程/快递/账单/验证码)；LOW=噪音(促销/砍价/无关推送/群闲聊)。
+            最高优先：群聊里被人@我(有人@我/@所有人/@你)一律 HIGH。
+            再按来源在生活里的重要性排：真人通讯(微信/QQ/短信/钉钉/飞书/WhatsApp 等的私聊/工作消息)最重要→优先 HIGH；生活服务(银行/支付/快递/账单/验证码/日程)→MID；营销/游戏/资讯短视频推送→LOW。
+            分级标准：HIGH=真人发来的私信/需我亲自处理或回复/有截止；MID=知道就行(日程/快递/账单/验证码/普通群消息)；LOW=噪音(促销/砍价/纯广告群发/无关推送)。
             示例："微信 王总：项目进度发我"→HIGH；"菜鸟 取件码8123"→MID；"某商城 帮我砍一刀"→LOW。
             todos：只对你判为 HIGH 的通知抽，且必须是需我亲自动手的动作(回复某人/审批/有明确截止)，最多3条，宁缺毋滥；快递到件/账单/验证码/促销/群闲聊一律不抽，没有就给空数组 []。
         """.trimIndent()
@@ -190,7 +198,8 @@ class DigestGenerator(
         }
         return """
             ${profileBlock()}给下面每条通知判优先级。只逐行输出，每行格式：id 空格 HIGH或MID或LOW。不要解释、不要别的字。
-            HIGH=需我亲自回复/处理/有截止；MID=知道就行(快递/账单/验证码/日程)；LOW=噪音(促销/砍价/群闲聊/无关推送)。
+            按来源在生活里的重要性：群里@我/真人私聊(微信/QQ/短信等)→HIGH；银行/快递/账单/验证码/日程→MID；营销/游戏/资讯推送→LOW。
+            HIGH=群里@我或真人私聊/需我亲自处理/有截止；MID=知道就行(快递/账单/验证码/日程/普通群消息)；LOW=噪音(促销/砍价/纯广告/无关推送)。
             示例：
             12 HIGH
             34 LOW
