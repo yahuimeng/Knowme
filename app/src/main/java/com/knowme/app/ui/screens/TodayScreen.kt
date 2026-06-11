@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -156,7 +157,7 @@ fun TodayScreen(vm: MainViewModel) {
                                     }
                                 }
                             },
-                        ) { Text(if (digest == null) "生成早报" else "重新生成") }
+                        ) { Text(if (digest == null) "生成早报" else "重新消化") }
                     }
                     toast?.let {
                         Spacer(Modifier.height(8.dp))
@@ -201,8 +202,17 @@ private fun androidx.compose.foundation.lazy.LazyListScope.bucket(
     }
     if (!expanded) return
     items(list, key = { it.id }) { n ->
+        // 每条可点开看全文：默认 3 行，溢出时才出现「展开全文」，点击展开/收起
+        var expanded by rememberSaveable(n.id) { mutableStateOf(false) }
+        var overflow by remember(n.id) { mutableStateOf(false) }
+        val canExpand = overflow || expanded
         Card(Modifier.fillMaxWidth()) {
-            Row(Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
+            Row(
+                Modifier
+                    .clickable(enabled = canExpand) { expanded = !expanded }
+                    .padding(12.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
                 Box(
                     Modifier
                         .padding(top = 6.dp)
@@ -221,7 +231,21 @@ private fun androidx.compose.foundation.lazy.LazyListScope.bucket(
                     }
                     val main = n.summary ?: listOf(n.title, n.text).filter { it.isNotEmpty() }.joinToString("：")
                     if (main.isNotEmpty()) {
-                        Text(main, style = MaterialTheme.typography.bodyLarge, maxLines = 3)
+                        Text(
+                            main,
+                            style = MaterialTheme.typography.bodyLarge,
+                            maxLines = if (expanded) Int.MAX_VALUE else 3,
+                            overflow = TextOverflow.Ellipsis,
+                            onTextLayout = { if (!expanded) overflow = it.hasVisualOverflow },
+                        )
+                        if (canExpand) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                if (expanded) "收起 ▴" else "展开全文 ▾",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
                     }
                 }
             }

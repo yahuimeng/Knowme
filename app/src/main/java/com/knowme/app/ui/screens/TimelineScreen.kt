@@ -89,16 +89,19 @@ fun TimelineScreen(vm: MainViewModel) {
     }
 }
 
-/** 同一 App 当天的通知聚合成一组，多条可折叠。 */
+/** 同一 App 当天的通知聚合成一组：多条可折叠；单条若过长也可点开看全文。 */
 @Composable
 private fun AppGroupItem(group: List<NotificationEntity>) {
     val latest = group.first()
     val multi = group.size > 1
     var expanded by remember(latest.id) { mutableStateOf(false) }
+    // 单条时：文字溢出 2 行才允许展开（多条始终可展开）
+    var overflow by remember(latest.id) { mutableStateOf(false) }
+    val canExpand = multi || overflow || expanded
 
     Card(Modifier.fillMaxWidth()) {
         Column(
-            Modifier.fillMaxWidth().clickable(enabled = multi) { expanded = !expanded }.padding(14.dp),
+            Modifier.fillMaxWidth().clickable(enabled = canExpand) { expanded = !expanded }.padding(14.dp),
         ) {
             Row(
                 Modifier.fillMaxWidth(),
@@ -116,21 +119,16 @@ private fun AppGroupItem(group: List<NotificationEntity>) {
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                }
-            }
-            if (!expanded) {
-                val line = snippet(latest)
-                if (line.isNotEmpty()) {
-                    Spacer(Modifier.height(4.dp))
+                } else if (canExpand) {
                     Text(
-                        line,
+                        if (expanded) "▴" else "▾",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = if (multi) 1 else 2,
-                        overflow = TextOverflow.Ellipsis,
                     )
                 }
-            } else {
+            }
+            if (multi && expanded) {
+                // 多条展开：逐条列全，分割线分隔
                 group.forEachIndexed { i, n ->
                     if (i == 0) Spacer(Modifier.height(10.dp))
                     else HorizontalDivider(Modifier.padding(vertical = 10.dp))
@@ -144,6 +142,20 @@ private fun AppGroupItem(group: List<NotificationEntity>) {
                         Spacer(Modifier.height(2.dp))
                         Text(line, style = MaterialTheme.typography.bodyMedium)
                     }
+                }
+            } else {
+                // 多条收起：1 行预览；单条：默认 2 行，展开后看全文
+                val line = snippet(latest)
+                if (line.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        line,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = if (multi) 1 else if (expanded) Int.MAX_VALUE else 2,
+                        overflow = TextOverflow.Ellipsis,
+                        onTextLayout = { if (!multi && !expanded) overflow = it.hasVisualOverflow },
+                    )
                 }
             }
         }
