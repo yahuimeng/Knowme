@@ -109,8 +109,8 @@ fun TodayScreen(vm: MainViewModel) {
                 Column(Modifier.padding(16.dp)) {
                     // 概览：三档大数字 + 占比条
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        StatCol(high.size, "需处理", priorityColor(Priority.HIGH))
-                        StatCol(mid.size, "知道就行", priorityColor(Priority.MID))
+                        StatCol(high.size, "要紧", priorityColor(Priority.HIGH))
+                        StatCol(mid.size, "留意", priorityColor(Priority.MID))
                         StatCol(low.size, "噪音", priorityColor(Priority.LOW))
                     }
                     Spacer(Modifier.height(12.dp))
@@ -167,9 +167,9 @@ fun TodayScreen(vm: MainViewModel) {
             }
         }
 
-        bucket("🔴 需要你处理", high, Priority.HIGH, highExpanded) { highExpanded = !highExpanded }
-        bucket("🟡 知道就行", mid, Priority.MID, midExpanded) { midExpanded = !midExpanded }
-        bucket("⚪️ 已折叠噪音", low, Priority.LOW, lowExpanded) { lowExpanded = !lowExpanded }
+        bucket("🔴 要紧", high, Priority.HIGH, highExpanded) { highExpanded = !highExpanded }
+        bucket("🟡 留意", mid, Priority.MID, midExpanded) { midExpanded = !midExpanded }
+        bucket("⚪️ 噪音", low, Priority.LOW, lowExpanded) { lowExpanded = !lowExpanded }
 
         item { Spacer(Modifier.height(100.dp)) }  // 给磨砂底栏留出空间
     }

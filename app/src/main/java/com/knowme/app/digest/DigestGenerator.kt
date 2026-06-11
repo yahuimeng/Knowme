@@ -201,9 +201,9 @@ class DigestGenerator(
         val l = all.count { it.priority == Priority.LOW }
         return buildString {
             append("今天共 ${all.size} 条通知")
-            if (h > 0) append("，${h} 条需要你处理")
-            if (m > 0) append("，${m} 条知道就行")
-            if (l > 0) append("，其余 $l 条为噪音已折叠")
+            if (h > 0) append("，${h} 条要紧")
+            if (m > 0) append("，${m} 条留意")
+            if (l > 0) append("，其余 $l 条噪音已折叠")
             append("。")
         }
     }
