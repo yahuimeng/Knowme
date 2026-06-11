@@ -2,12 +2,14 @@ package com.knowme.app.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalContext
 
 // 品牌兜底配色（仅在不支持动态取色的老设备使用）
@@ -102,6 +104,12 @@ fun KnowmeTheme(
         colorScheme = colorScheme,
         typography = KnowmeTypography,
         shapes = KnowmeShapes,
-        content = content,
-    )
+    ) {
+        // App 没有用整页 Surface 包裹，卡片外文字会回退到默认黑色，暗色下看不清。
+        // 在主题层统一提供 onBackground 作为默认文字色（Card/对话框等会用自身 onSurface 覆盖）。
+        CompositionLocalProvider(
+            LocalContentColor provides colorScheme.onBackground,
+            content = content,
+        )
+    }
 }

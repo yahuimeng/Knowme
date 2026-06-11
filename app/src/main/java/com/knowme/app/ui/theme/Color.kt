@@ -41,3 +41,7 @@ val OnWarmErrorContainerDark = Color(0xFFFFDAD6)
 val PriorityHigh = Color(0xFFC1453A)   // 🔴 需要你处理
 val PriorityMid = Color(0xFFC2862A)    // 🟡 知道就行
 val PriorityLow = Color(0xFF9AA09C)    // ⚪️ 噪音
+// 暗色下当文字/点缀的更亮变体（浅色调原色在深底上发暗看不清）
+val PriorityHighDark = Color(0xFFF28B82) // 亮珊瑚红
+val PriorityMidDark = Color(0xFFE8B65A)  // 亮琥珀
+val PriorityLowDark = Color(0xFFAEB4AF)  // 亮灰

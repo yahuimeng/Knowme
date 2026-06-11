@@ -1,10 +1,16 @@
 package com.knowme.app.ui
 
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.Color
 import com.knowme.app.data.db.Priority
 import com.knowme.app.ui.theme.PriorityHigh
+import com.knowme.app.ui.theme.PriorityHighDark
 import com.knowme.app.ui.theme.PriorityLow
+import com.knowme.app.ui.theme.PriorityLowDark
 import com.knowme.app.ui.theme.PriorityMid
+import com.knowme.app.ui.theme.PriorityMidDark
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -35,7 +41,14 @@ fun dayLabel(millis: Long): String {
     }
 }
 
-fun priorityColor(p: Priority): Color = when (p) {
+/** 跟随主题：暗色返回更亮的变体，避免深底上文字发暗看不清。 */
+@Composable
+@ReadOnlyComposable
+fun priorityColor(p: Priority): Color = if (isSystemInDarkTheme()) when (p) {
+    Priority.HIGH -> PriorityHighDark
+    Priority.MID -> PriorityMidDark
+    else -> PriorityLowDark
+} else when (p) {
     Priority.HIGH -> PriorityHigh
     Priority.MID -> PriorityMid
     else -> PriorityLow
