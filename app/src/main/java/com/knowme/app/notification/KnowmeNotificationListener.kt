@@ -1,6 +1,7 @@
 package com.knowme.app.notification
 
 import android.app.Notification
+import android.content.ComponentName
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import com.knowme.app.KnowmeApp
@@ -18,6 +19,14 @@ import kotlinx.coroutines.launch
 class KnowmeNotificationListener : NotificationListenerService() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * 连接断开（系统更新/回收/低内存）时，主动请求重连。
+     * 否则 onNotificationPosted 会静默停摆，新通知再也不入库。
+     */
+    override fun onListenerDisconnected() {
+        requestRebind(ComponentName(this, KnowmeNotificationListener::class.java))
+    }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         sbn ?: return
