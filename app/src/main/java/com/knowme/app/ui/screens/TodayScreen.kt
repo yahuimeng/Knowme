@@ -75,11 +75,14 @@ fun TodayScreen(vm: MainViewModel) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    // 还没消化的（刚到、或 AI 漏判）：UNKNOWN 也要露出来，绝不让通知凭空消失
+    val pending = todays.filter { it.priority == Priority.UNKNOWN }
     val high = todays.filter { it.priority == Priority.HIGH }
     val mid = todays.filter { it.priority == Priority.MID }
     val low = todays.filter { it.priority == Priority.LOW }
 
-    // 三档可折叠：要处理默认展开，噪音默认收起
+    // 分档可折叠：待消化/要紧默认展开，噪音默认收起
+    var pendingExpanded by rememberSaveable { mutableStateOf(true) }
     var highExpanded by rememberSaveable { mutableStateOf(true) }
     var midExpanded by rememberSaveable { mutableStateOf(true) }
     var lowExpanded by rememberSaveable { mutableStateOf(false) }
@@ -167,6 +170,7 @@ fun TodayScreen(vm: MainViewModel) {
             }
         }
 
+        bucket("⏳ 待消化", pending, Priority.UNKNOWN, pendingExpanded, vm::recordEngagement) { pendingExpanded = !pendingExpanded }
         bucket("🔴 要紧", high, Priority.HIGH, highExpanded, vm::recordEngagement) { highExpanded = !highExpanded }
         bucket("🟡 留意", mid, Priority.MID, midExpanded, vm::recordEngagement) { midExpanded = !midExpanded }
         bucket("⚪️ 噪音", low, Priority.LOW, lowExpanded, vm::recordEngagement) { lowExpanded = !lowExpanded }
@@ -235,7 +239,10 @@ private fun TodayAppGroup(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(8.dp).clip(CircleShape).background(priorityColor(priority)))
+                    // 待消化(UNKNOWN)用中性灰，区别于"噪音"的低优先级色
+                    val dotColor = if (priority == Priority.UNKNOWN) MaterialTheme.colorScheme.outline
+                    else priorityColor(priority)
+                    Box(Modifier.size(8.dp).clip(CircleShape).background(dotColor))
                     Spacer(Modifier.size(8.dp))
                     Text(latest.appName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                 }
