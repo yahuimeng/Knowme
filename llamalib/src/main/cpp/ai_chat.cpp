@@ -292,8 +292,11 @@ static std::string chat_add_and_format(const std::string &role, const std::strin
     common_chat_msg new_msg;
     new_msg.role = role;
     new_msg.content = content;
+    // use_jinja=true：用 minja/jinja 引擎渲染模板。新模型（gemma-3/4 等）内嵌的是
+    // 自定义 Jinja 模板，旧版非-jinja 路径会抛 std::runtime_error 直接 SIGABRT 闪退。
+    // jinja 路径同时兼容老模型的标准模板，故全量开启。
     auto formatted = common_chat_format_single(
-            g_chat_templates.get(), chat_msgs, new_msg, role == ROLE_USER, /* use_jinja */ false);
+            g_chat_templates.get(), chat_msgs, new_msg, role == ROLE_USER, /* use_jinja */ true);
     chat_msgs.push_back(new_msg);
     LOGi("%s: Formatted and added %s message: \n%s\n", __func__, role.c_str(), formatted.c_str());
     return formatted;
